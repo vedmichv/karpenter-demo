@@ -1,0 +1,12 @@
+apiVersion: eksctl.io/v1alpha5
+kind: ClusterConfig
+
+metadata:
+  name: vedmich-ca-demo
+  region: eu-west-1
+
+managedNodeGroups:
+  - name: ca-ng-spot-01
+    labels: { role: workers }
+    instanceTypes: ["c3.large","c4.large","c5.large","c5d.large","c5n.large","c5a.large"]
+    spot: true
