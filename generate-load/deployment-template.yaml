@@ -1,0 +1,26 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: "${NAME}"
+spec:
+  replicas: ${BATCH}
+  selector:
+    matchLabels:
+      app: "${NAME}"
+  template:
+    metadata:
+      labels:
+        app: "${NAME}"
+    spec:
+      containers:
+      - image: public.ecr.aws/jg/curlit:latest
+        name: "${NAME}"
+        resources:
+          requests:
+            cpu: "${CPU}"
+            memory: "${MEM}"
+      tolerations:
+      - key: karpenter
+        operator: Exists
+      nodeSelector:
+        kubernetes.io/arch: amd64
