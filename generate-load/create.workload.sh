@@ -26,4 +26,5 @@ while (test $COUNT -lt $TOTAL); do
 		| envsubst \
 		| kubectl apply -n ${NAMESPACE} -f -
 	COUNT=$((COUNT+$BATCH))
+	sleep 180
 done

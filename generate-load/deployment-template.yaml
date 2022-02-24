@@ -12,6 +12,7 @@ spec:
       labels:
         app: "${NAME}"
     spec:
+      terminationGracePeriodSeconds: 0
       containers:
       - image: public.ecr.aws/jg/curlit:latest
         name: "${NAME}"
