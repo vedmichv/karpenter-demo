@@ -12,7 +12,7 @@ spec:
       cpu: 10000
   provider:
     subnetSelector:
-      karpenter.sh/discovery: vedmich-karpenter-demo
+      karpenter.sh/discovery: vedmich-karpenter-02
     securityGroupSelector:
-      karpenter.sh/discovery: vedmich-karpenter-demo
+      karpenter.sh/discovery: vedmich-karpenter-02
   ttlSecondsAfterEmpty: 30

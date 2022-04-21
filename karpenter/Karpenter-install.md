@@ -4,6 +4,8 @@ Installation process - https://www.eksworkshop.com/beginner/080_scaling/install_
 Define variables:
 
 ```bash
+export KARPENTER_VERSION=v0.6.4
+
 export CLUSTER_NAME="vedmich-karpenter-02"
 export AWS_DEFAULT_REGION="eu-west-1"
 export AWS_ACCOUNT_ID="$(aws sts get-caller-identity --query Account --output text)"
@@ -22,7 +24,7 @@ metadata:
   tags:
     karpenter.sh/discovery: ${CLUSTER_NAME}
 managedNodeGroups:
-  - instanceType: m5.large
+  - instanceType: m5.xlarge
     amiFamily: AmazonLinux2
     name: ${CLUSTER_NAME}-ng
     desiredCapacity: 1
@@ -33,6 +35,52 @@ iam:
 EOF
 
 export CLUSTER_ENDPOINT="$(aws eks describe-cluster --name ${CLUSTER_NAME} --query "cluster.endpoint" --output text)"
+```
+
+Create IAM Role
+
+```
+TEMPOUT=$(mktemp)
+curl -fsSL https://karpenter.sh/"${KARPENTER_VERSION}"/getting-started/cloudformation.yaml  > $TEMPOUT \
+&& aws cloudformation deploy \
+  –-stack-name "Karpenter-${CLUSTER_NAME}" \
+  –-template-file "${TEMPOUT}" \
+  –-capabilities CAPABILITY_NAMED_IAM \ 
+  –-parameter-overrides "ClusterName=${CLUSTER_NAME}"
+```
+
+TEMPOUT=$(mktemp)
+
+curl -fsSL https://karpenter.sh/v0.6.4/getting-started/cloudformation.yaml  > $TEMPOUT \
+&& aws cloudformation deploy \
+  --stack-name "Karpenter-${CLUSTER_NAME}" \
+  --template-file "${TEMPOUT}" \
+  --capabilities CAPABILITY_NAMED_IAM \
+  --parameter-overrides "ClusterName=${CLUSTER_NAME}"
+  
+  
+
+## Install karpenter with custom resources
+
+```bash
+helm upgrade --install --namespace karpenter --create-namespace \
+  karpenter karpenter/karpenter \
+  --version ${KARPENTER_VERSION} \
+  --set serviceAccount.annotations."eks\.amazonaws\.com/role-arn"=${KARPENTER_IAM_ROLE_ARN} \
+  --set clusterName=${CLUSTER_NAME} \
+  --set clusterEndpoint=${CLUSTER_ENDPOINT} \
+  --set aws.defaultInstanceProfile=KarpenterNodeInstanceProfile-${CLUSTER_NAME} \
+  --set controller.resources.requests.cpu=2 \
+  --set controller.resources.limits.cpu=2 \
+  --set controller.resources.requests.memory=2Gi \
+  --set controller.resources.limits.memory=2Gi \
+  --wait # for the defaulting webhook to install before creating a Provisioner
+```
+
+Scale
+
+```
+eksctl scale nodegroup --cluster=vedmich-karpenter-02 --nodes=2 --name=vedmich-karpenter-02-ng
 ```
 
 
