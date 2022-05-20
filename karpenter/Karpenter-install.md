@@ -4,9 +4,9 @@ Installation process - https://www.eksworkshop.com/beginner/080_scaling/install_
 Define variables:
 
 ```bash
-export KARPENTER_VERSION=v0.6.4
+export KARPENTER_VERSION=v0.8.2
 
-export CLUSTER_NAME="vedmich-karpenter-02"
+export CLUSTER_NAME="vedmich-karpenter-03"
 export AWS_DEFAULT_REGION="eu-west-1"
 export AWS_ACCOUNT_ID="$(aws sts get-caller-identity --query Account --output text)"
 ```
@@ -41,24 +41,39 @@ Create IAM Role
 
 ```
 TEMPOUT=$(mktemp)
-curl -fsSL https://karpenter.sh/"${KARPENTER_VERSION}"/getting-started/cloudformation.yaml  > $TEMPOUT \
-&& aws cloudformation deploy \
-  –-stack-name "Karpenter-${CLUSTER_NAME}" \
-  –-template-file "${TEMPOUT}" \
-  –-capabilities CAPABILITY_NAMED_IAM \ 
-  –-parameter-overrides "ClusterName=${CLUSTER_NAME}"
-```
 
-TEMPOUT=$(mktemp)
-
-curl -fsSL https://karpenter.sh/v0.6.4/getting-started/cloudformation.yaml  > $TEMPOUT \
+curl -fsSL https://karpenter.sh/"${KARPENTER_VERSION}"/getting-started/getting-started-with-eksctl/cloudformation.yaml  > $TEMPOUT \
 && aws cloudformation deploy \
   --stack-name "Karpenter-${CLUSTER_NAME}" \
   --template-file "${TEMPOUT}" \
   --capabilities CAPABILITY_NAMED_IAM \
   --parameter-overrides "ClusterName=${CLUSTER_NAME}"
   
-  
+
+eksctl create iamidentitymapping \
+  --username system:node:{{EC2PrivateDNSName}} \
+  --cluster "${CLUSTER_NAME}" \
+  --arn "arn:aws:iam::${AWS_ACCOUNT_ID}:role/KarpenterNodeRole-${CLUSTER_NAME}" \
+  --group system:bootstrappers \
+  --group system:nodes
+
+
+```
+
+Controller IAM role
+
+```
+eksctl create iamserviceaccount \
+  --cluster "${CLUSTER_NAME}" --name karpenter --namespace karpenter \
+  --role-name "${CLUSTER_NAME}-karpenter" \
+  --attach-policy-arn "arn:aws:iam::${AWS_ACCOUNT_ID}:policy/KarpenterControllerPolicy-${CLUSTER_NAME}" \
+  --role-only \
+  --approve
+
+export KARPENTER_IAM_ROLE_ARN="arn:aws:iam::${AWS_ACCOUNT_ID}:role/${CLUSTER_NAME}-karpenter"
+
+```
+
 
 ## Install karpenter with custom resources
 
