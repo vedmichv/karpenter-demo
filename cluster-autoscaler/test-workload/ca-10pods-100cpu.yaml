@@ -21,4 +21,4 @@ spec:
               cpu: 10
               memory: "10Gi"
       nodeSelector:
-        role: worker
+        role: workers
