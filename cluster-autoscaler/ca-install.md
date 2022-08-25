@@ -48,7 +48,7 @@ metadata:
 managedNodeGroups:
   - name: ${CLUSTER_NAME}-ng-spot-01
     labels: { role: workers }
-    instanceTypes: ["c5.large","c5n.large","c6g.large","c5d.large","c5a.large"]
+    instanceTypes: ["c5.large","c5n.large","c5d.large","c5a.large","m5.large","m5d.large"]
     spot: true
 EOF
 eksctl create nodegroup --config-file ${CLUSTER_NAME}-spot-nodegroup.yaml
