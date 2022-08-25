@@ -29,10 +29,10 @@ metadata:
   tags:
     karpenter.sh/discovery: ${CLUSTER_NAME}
 managedNodeGroups:
-  - instanceType: m5.large
+  - instanceType: m5.xlarge
     amiFamily: AmazonLinux2
     name: ${CLUSTER_NAME}-ng
-    desiredCapacity: 1
+    desiredCapacity: 2
     minSize: 1
     maxSize: 10
 iam:
@@ -86,6 +86,8 @@ export KARPENTER_IAM_ROLE_ARN="arn:aws:iam::${AWS_ACCOUNT_ID}:role/${CLUSTER_NAM
 helm repo add karpenter https://charts.karpenter.sh/
 helm repo update
 
+
+  
 helm upgrade --install --namespace karpenter --create-namespace \
   karpenter karpenter/karpenter \
   --version ${KARPENTER_VERSION} \
@@ -93,6 +95,10 @@ helm upgrade --install --namespace karpenter --create-namespace \
   --set clusterName=${CLUSTER_NAME} \
   --set clusterEndpoint=${CLUSTER_ENDPOINT} \
   --set aws.defaultInstanceProfile=KarpenterNodeInstanceProfile-${CLUSTER_NAME} \
+  --set controller.resources.requests.cpu=2 \
+  --set controller.resources.requests.memory=2Gi \
+  --set controller.resources.limits.cpu=4 \
+  --set controller.resources.limits.memory=4Gi \
   --wait # for the defaulting webhook to install before creating a Provisioner
 
 ```
