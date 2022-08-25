@@ -1,5 +1,5 @@
-Kube-ops-view is required for the demo
 
+# Process of installation EKS cluster with Karpenter
 
 
 Define variables:
@@ -41,6 +41,22 @@ EOF
 
 export CLUSTER_ENDPOINT="$(aws eks describe-cluster --name ${CLUSTER_NAME} --query "cluster.endpoint" --output text)"
 ```
+
+Kube-ops-view is required for the demo
+
+Metric server:
+```bash
+kubectl apply -f https://github.com/kubernetes-sigs/metrics-server/releases/latest/download/components.yaml
+kubectl get deployment metrics-server -n kube-system
+```
+
+Kube-Ops-View
+```bash
+cd ~/environment/karpenter-demo/kube-ops-view/
+kubectl apply -k deploy 
+kubectl get pod,svc,sa
+```
+
 
 Create IAM Role
 
@@ -86,7 +102,7 @@ export KARPENTER_IAM_ROLE_ARN="arn:aws:iam::${AWS_ACCOUNT_ID}:role/${CLUSTER_NAM
 helm repo add karpenter https://charts.karpenter.sh/
 helm repo update
 
-
+# check that our chart is fine
 helm install --debug --dry-run --namespace karpenter --create-namespace \
   karpenter karpenter/karpenter \
   --version ${KARPENTER_VERSION} \
@@ -98,7 +114,10 @@ helm install --debug --dry-run --namespace karpenter --create-namespace \
   --set controller.resources.requests.memory=2Gi \
   --set controller.resources.limits.cpu=4 \
   --set controller.resources.limits.memory=4Gi
+```
 
+Deploy Karpenter
+```bash
 helm upgrade --install --namespace karpenter --create-namespace \
   karpenter karpenter/karpenter \
   --version ${KARPENTER_VERSION} \
@@ -114,7 +133,7 @@ helm upgrade --install --namespace karpenter --create-namespace \
 
 ```
 
-Provisioner
+Provisioner default with spot instances 
 
 ```bash
 cat <<EOF | kubectl apply -f -
@@ -160,18 +179,3 @@ Run stress test:
 ./create.workload.sh 5000 500
 ```
 
-Edit values 
-
-https://github.com/aws/karpenter/blob/main/charts/karpenter/values.yaml 
-
-Install eksctl - https://docs.aws.amazon.com/eks/latest/userguide/eksctl.html
-
-Install helm 
-https://helm.sh/docs/intro/install/
-
-NodeSelector
-https://kubernetes.io/docs/concepts/scheduling-eviction/assign-pod-node/
-
-
-eksctl manage nodegroup 
-https://eksctl.io/usage/spot-instances/

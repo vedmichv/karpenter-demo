@@ -1,3 +1,5 @@
+# Process of installation and configuration EKS cluster with CA
+
 Define variables:
 
 ```bash
@@ -33,29 +35,27 @@ EOF
 export CLUSTER_ENDPOINT="$(aws eks describe-cluster --name ${CLUSTER_NAME} --query "cluster.endpoint" --output text)"
 ```
 
-## Create nodegroup
+### Install metric server and kube-ops-view
+
+Kube-ops-view is required for the demo
+
+Metric server:
+```bash
+kubectl apply -f https://github.com/kubernetes-sigs/metrics-server/releases/latest/download/components.yaml
+kubectl get deployment metrics-server -n kube-system
+```
+
+Kube-Ops-View
+```bash
+cd ~/environment/karpenter-demo/kube-ops-view/
+kubectl apply -k deploy 
+kubectl get pod,svc,sa
+```
+
+
+## Install CA
 
 ```bash
-cat >${CLUSTER_NAME}-spot-nodegroup.yaml <<EOF
-
-apiVersion: eksctl.io/v1alpha5
-kind: ClusterConfig
-
-metadata:
-  name: ${CLUSTER_NAME}
-  region: ${AWS_DEFAULT_REGION}
-
-managedNodeGroups:
-  - name: ${CLUSTER_NAME}-ng-spot-01
-    labels: { role: workers }
-    instanceTypes: ["c5.large","c5n.large","c5d.large","c5a.large","m5.large","m5d.large"]
-    spot: true
-    desiredCapacity: 1
-    minSize: 1
-    maxSize: 100
-EOF
-eksctl create nodegroup --config-file ${CLUSTER_NAME}-spot-nodegroup.yaml
-
 aws autoscaling \
     describe-auto-scaling-groups \
     --query "AutoScalingGroups[? Tags[? (Key=='eks:cluster-name') && Value=='${CLUSTER_NAME}']].[AutoScalingGroupName, MinSize, MaxSize,DesiredCapacity]" \
@@ -66,7 +66,7 @@ In case if we do not configure the correct the value of max count of instances:
 
 ```bash
 # we need the ASG name (double check if we have more than 1 ASG)
-export ASG_NAME=$(aws autoscaling describe-auto-scaling-groups --query "AutoScalingGroups[? Tags[? (Key=='eks:cluster-name') && Value=='${CLUSTER_NAME}']].AutoScalingGroupName" --output text | awk '{print $2}')
+export ASG_NAME=$(aws autoscaling describe-auto-scaling-groups --query "AutoScalingGroups[? Tags[? (Key=='eks:cluster-name') && Value=='${CLUSTER_NAME}']].AutoScalingGroupName" --output text)
 
 # increase max capacity up to 100
 aws autoscaling \
@@ -74,7 +74,7 @@ aws autoscaling \
     --auto-scaling-group-name ${ASG_NAME} \
     --min-size 1 \
     --desired-capacity 2 \
-    --max-size 100
+    --max-size 3
 
 # Check new values
 aws autoscaling \
@@ -170,4 +170,33 @@ Check the logs from auto-scaler
 
 ```bash
 kubectl -n kube-system logs -f deployment.apps/cluster-autoscaler
+```
+
+## Create nodegroup for test load
+
+```bash
+cat >${CLUSTER_NAME}-spot-nodegroup.yaml <<EOF
+
+apiVersion: eksctl.io/v1alpha5
+kind: ClusterConfig
+
+metadata:
+  name: ${CLUSTER_NAME}
+  region: ${AWS_DEFAULT_REGION}
+
+managedNodeGroups:
+  - name: ${CLUSTER_NAME}-ng-spot-01
+    labels: { role: workers }
+    instanceTypes: ["c5.large","c5n.large","c5d.large","c5a.large","m5.large","m5d.large"]
+    spot: true
+    desiredCapacity: 1
+    minSize: 1
+    maxSize: 100
+EOF
+eksctl create nodegroup --config-file ${CLUSTER_NAME}-spot-nodegroup.yaml
+
+aws autoscaling \
+    describe-auto-scaling-groups \
+    --query "AutoScalingGroups[? Tags[? (Key=='eks:cluster-name') && Value=='${CLUSTER_NAME}']].[AutoScalingGroupName, MinSize, MaxSize,DesiredCapacity]" \
+    --output table
 ```
