@@ -25,7 +25,7 @@ managedNodeGroups:
     name: ${CLUSTER_NAME}-ng
     desiredCapacity: 1
     minSize: 1
-    maxSize: 10
+    maxSize: 2
 iam:
   withOIDC: true
 EOF
@@ -36,6 +36,6 @@ export CLUSTER_ENDPOINT="$(aws eks describe-cluster --name ${CLUSTER_NAME} --que
 ## Create nodegroup
 
 ```bash
-eksctl create nodegroup --config-file=
+eksctl create nodegroup --config-file=spot-nodegroup.yaml
 ```
 

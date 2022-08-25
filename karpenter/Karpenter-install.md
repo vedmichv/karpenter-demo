@@ -1,14 +1,19 @@
-Installation process - https://www.eksworkshop.com/beginner/080_scaling/install_kube_ops_view/
+Kube-ops-view is required for the demo
+
 
 
 Define variables:
 
 ```bash
-export KARPENTER_VERSION=v0.8.2
+export KARPENTER_VERSION=v0.16.0
 
-export CLUSTER_NAME="vedmich-karpenter-03"
+export CLUSTER_NAME="vedmich-karpenter-01"
 export AWS_DEFAULT_REGION="eu-west-1"
 export AWS_ACCOUNT_ID="$(aws sts get-caller-identity --query Account --output text)"
+
+# check that we correctly configure our vars
+echo $KARPENTER_VERSION $CLUSTER_NAME $AWS_DEFAULT_REGION $AWS_ACCOUNT_ID
+
 ```
 
 
@@ -20,11 +25,11 @@ kind: ClusterConfig
 metadata:
   name: ${CLUSTER_NAME}
   region: ${AWS_DEFAULT_REGION}
-  version: "1.21"
+  version: "1.23"
   tags:
     karpenter.sh/discovery: ${CLUSTER_NAME}
 managedNodeGroups:
-  - instanceType: m5.xlarge
+  - instanceType: m5.large
     amiFamily: AmazonLinux2
     name: ${CLUSTER_NAME}-ng
     desiredCapacity: 1
@@ -39,7 +44,7 @@ export CLUSTER_ENDPOINT="$(aws eks describe-cluster --name ${CLUSTER_NAME} --que
 
 Create IAM Role
 
-```
+```bash
 TEMPOUT=$(mktemp)
 
 curl -fsSL https://karpenter.sh/"${KARPENTER_VERSION}"/getting-started/getting-started-with-eksctl/cloudformation.yaml  > $TEMPOUT \
@@ -62,7 +67,7 @@ eksctl create iamidentitymapping \
 
 Controller IAM role
 
-```
+```bash
 eksctl create iamserviceaccount \
   --cluster "${CLUSTER_NAME}" --name karpenter --namespace karpenter \
   --role-name "${CLUSTER_NAME}-karpenter" \
@@ -75,9 +80,12 @@ export KARPENTER_IAM_ROLE_ARN="arn:aws:iam::${AWS_ACCOUNT_ID}:role/${CLUSTER_NAM
 ```
 
 
-## Install karpenter with custom resources
+## Install karpenter Helm Chart
 
 ```bash
+helm repo add karpenter https://charts.karpenter.sh/
+helm repo update
+
 helm upgrade --install --namespace karpenter --create-namespace \
   karpenter karpenter/karpenter \
   --version ${KARPENTER_VERSION} \
@@ -85,17 +93,41 @@ helm upgrade --install --namespace karpenter --create-namespace \
   --set clusterName=${CLUSTER_NAME} \
   --set clusterEndpoint=${CLUSTER_ENDPOINT} \
   --set aws.defaultInstanceProfile=KarpenterNodeInstanceProfile-${CLUSTER_NAME} \
-  --set controller.resources.requests.cpu=2 \
-  --set controller.resources.limits.cpu=2 \
-  --set controller.resources.requests.memory=2Gi \
-  --set controller.resources.limits.memory=2Gi \
   --wait # for the defaulting webhook to install before creating a Provisioner
+
 ```
+
+Provisioner
+
+```bash
+cat <<EOF | kubectl apply -f -
+apiVersion: karpenter.sh/v1alpha5
+kind: Provisioner
+metadata:
+  name: default
+spec:
+  requirements:
+    - key: karpenter.sh/capacity-type
+      operator: In
+      values: ["spot"]
+  limits:
+    resources:
+      cpu: 1000
+  provider:
+    subnetSelector:
+      karpenter.sh/discovery: ${CLUSTER_NAME}
+    securityGroupSelector:
+      karpenter.sh/discovery: ${CLUSTER_NAME}
+  ttlSecondsAfterEmpty: 30
+EOF
+
+```
+
 
 Scale
 
-```
-eksctl scale nodegroup --cluster=vedmich-karpenter-02 --nodes=2 --name=vedmich-karpenter-02-ng
+```bash
+eksctl scale nodegroup --cluster=${CLUSTER_NAME} --nodes=2 --name=${CLUSTER_NAME}-ng
 ```
 
 
