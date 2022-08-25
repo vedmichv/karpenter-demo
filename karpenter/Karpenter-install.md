@@ -29,7 +29,7 @@ metadata:
   tags:
     karpenter.sh/discovery: ${CLUSTER_NAME}
 managedNodeGroups:
-  - instanceType: m5.2xlarge
+  - instanceType: c5.2xlarge
     amiFamily: AmazonLinux2
     name: ${CLUSTER_NAME}-ng
     desiredCapacity: 2
