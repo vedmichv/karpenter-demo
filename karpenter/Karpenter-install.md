@@ -7,8 +7,8 @@ Define variables:
 ```bash
 export KARPENTER_VERSION=v0.16.0
 
-export CLUSTER_NAME="vedmich-karpenter-01"
-export AWS_DEFAULT_REGION="eu-west-1"
+export CLUSTER_NAME="vedmich-karpenter-825-01"
+export AWS_DEFAULT_REGION=$(curl -s 169.254.169.254/latest/dynamic/instance-identity/document | jq -r '.region')
 export AWS_ACCOUNT_ID="$(aws sts get-caller-identity --query Account --output text)"
 
 # check that we correctly configure our vars
@@ -29,7 +29,7 @@ metadata:
   tags:
     karpenter.sh/discovery: ${CLUSTER_NAME}
 managedNodeGroups:
-  - instanceType: m5.xlarge
+  - instanceType: m5.2xlarge
     amiFamily: AmazonLinux2
     name: ${CLUSTER_NAME}-ng
     desiredCapacity: 2
@@ -87,7 +87,18 @@ helm repo add karpenter https://charts.karpenter.sh/
 helm repo update
 
 
-  
+helm install --debug --dry-run --namespace karpenter --create-namespace \
+  karpenter karpenter/karpenter \
+  --version ${KARPENTER_VERSION} \
+  --set serviceAccount.annotations."eks\.amazonaws\.com/role-arn"=${KARPENTER_IAM_ROLE_ARN} \
+  --set clusterName=${CLUSTER_NAME} \
+  --set clusterEndpoint=${CLUSTER_ENDPOINT} \
+  --set aws.defaultInstanceProfile=KarpenterNodeInstanceProfile-${CLUSTER_NAME} \
+  --set controller.resources.requests.cpu=2 \
+  --set controller.resources.requests.memory=2Gi \
+  --set controller.resources.limits.cpu=4 \
+  --set controller.resources.limits.memory=4Gi
+
 helm upgrade --install --namespace karpenter --create-namespace \
   karpenter karpenter/karpenter \
   --version ${KARPENTER_VERSION} \
