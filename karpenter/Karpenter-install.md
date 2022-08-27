@@ -7,7 +7,7 @@ Define variables:
 ```bash
 export KARPENTER_VERSION=v0.16.0
 
-export CLUSTER_NAME="vedmich-karpenter-825-01"
+export CLUSTER_NAME="vedmich-kr-826-01"
 export AWS_DEFAULT_REGION=$(curl -s 169.254.169.254/latest/dynamic/instance-identity/document | jq -r '.region')
 export AWS_ACCOUNT_ID="$(aws sts get-caller-identity --query Account --output text)"
 
@@ -158,12 +158,73 @@ spec:
 EOF
 
 ```
+# consolidation true
+
+```bash
+cat <<EOF | kubectl apply -f -
+apiVersion: karpenter.sh/v1alpha5
+kind: Provisioner
+metadata:
+  name: default
+spec:
+  consolidation:
+    enabled: true
+  requirements:
+    - key: karpenter.sh/capacity-type
+      operator: In
+      values: ["spot"]
+  limits:
+    resources:
+      cpu: 1000
+  provider:
+    subnetSelector:
+      karpenter.sh/discovery: ${CLUSTER_NAME}
+    securityGroupSelector:
+      karpenter.sh/discovery: ${CLUSTER_NAME}
+EOF
+
+```
+
+
+restriction count of pods per node
+```bash
+cat <<EOF | kubectl apply -f -
+apiVersion: karpenter.sh/v1alpha5
+kind: Provisioner
+metadata:
+  name: default
+spec:
+  requirements:
+    - key: karpenter.sh/capacity-type
+      operator: In
+      values: ["spot"]
+  limits:
+    resources:
+      cpu: 1000
+  provider:
+    subnetSelector:
+      karpenter.sh/discovery: ${CLUSTER_NAME}
+    securityGroupSelector:
+      karpenter.sh/discovery: ${CLUSTER_NAME}
+  kubeletConfiguration:
+    containerRuntime: containerd
+    systemReserved:
+      cpu: 1
+      memory: 1Gi
+      ephemeral-storage: 2Gi
+    maxPods: 20
+EOF
+
+```
+
 
 
 Scale
 
 ```bash
 eksctl scale nodegroup --cluster=${CLUSTER_NAME} --nodes=2 --name=${CLUSTER_NAME}-ng
+k get no -L node.kubernetes.io/instance-type,kubernetes.io/arch,karpenter.sh/capacity-type 
+
 ```
 
 
