@@ -7,7 +7,7 @@ Define variables:
 ```bash
 export KARPENTER_VERSION=v0.16.0
 
-export CLUSTER_NAME="vedmich-kr-826-01"
+export CLUSTER_NAME="vedmich-kr01-827-01"
 export AWS_DEFAULT_REGION=$(curl -s 169.254.169.254/latest/dynamic/instance-identity/document | jq -r '.region')
 export AWS_ACCOUNT_ID="$(aws sts get-caller-identity --query Account --output text)"
 
@@ -242,6 +242,8 @@ Scale
 ```bash
 eksctl scale nodegroup --cluster=${CLUSTER_NAME} --nodes=2 --name=${CLUSTER_NAME}-ng
 k get no -L node.kubernetes.io/instance-type,kubernetes.io/arch,karpenter.sh/capacity-type 
+
+kubectl resource-capacity --sort cpu.limit
 
 ```
 
