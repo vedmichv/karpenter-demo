@@ -201,11 +201,6 @@ spec:
   limits:
     resources:
       cpu: 1000
-  provider:
-    subnetSelector:
-      karpenter.sh/discovery: ${CLUSTER_NAME}
-    securityGroupSelector:
-      karpenter.sh/discovery: ${CLUSTER_NAME}
   kubeletConfiguration:
     containerRuntime: containerd
     systemReserved:
@@ -213,9 +208,32 @@ spec:
       memory: 1Gi
       ephemeral-storage: 2Gi
     maxPods: 20
+  provider:
+    subnetSelector:
+      karpenter.sh/discovery: ${CLUSTER_NAME}
+    securityGroupSelector:
+      karpenter.sh/discovery: ${CLUSTER_NAME}
 EOF
 
 ```
+apiVersion: karpenter.sh/v1alpha5
+kind: Provisioner
+metadata:
+  name: default
+spec:
+  kubeletConfiguration:
+    containerRuntime: containerd
+    maxPods: 20
+
+  # Resource limits constrain the total size of the cluster.
+  # Limits prevent Karpenter from creating new instances once the limit is exceeded.
+  limits:
+    resources:
+      cpu: "1000"
+      memory: 1000Gi
+
+  # These fields vary per cloud provider, see your cloud provider specific documentation
+  provider: {}
 
 
 
