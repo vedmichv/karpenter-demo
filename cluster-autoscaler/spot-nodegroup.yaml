@@ -11,6 +11,7 @@ managedNodeGroups:
     instanceTypes: ["c3.large","c4.large","c5.large","c5d.large","c5n.large","c5a.large"]
     spot: true
   - name: ca-ng-02
+    labels: { role: ondemand }
     instanceSelector:
       vCPUs: 8
       memory: "16"
