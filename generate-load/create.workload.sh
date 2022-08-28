@@ -6,7 +6,8 @@ set -o pipefail
 TOTAL=${1:-500}
 # deploy size
 export BATCH=${2:-100}
-export NAMESPACE=${KUBE_NAMESPACE:-default}
+export SECONDS=${3:0}
+export NAMESPACE=${4:-default}
 
 CPU_OPTIONS=(250m 500m 750m 1 2)
 MEM_OPTIONS=(128M 256M 512M 750M 1G)
@@ -26,5 +27,5 @@ while (test $COUNT -lt $TOTAL); do
 		| envsubst \
 		| kubectl apply -n ${NAMESPACE} -f -
 	COUNT=$((COUNT+$BATCH))
-	sleep 60
+	sleep ${SECONDS}
 done

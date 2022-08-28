@@ -7,7 +7,7 @@ Define variables:
 ```bash
 export KARPENTER_VERSION=v0.16.0
 
-export CLUSTER_NAME="vedmich-kr01-827-01"
+export CLUSTER_NAME="vedmich-kr01-randmin-828-01"
 export AWS_DEFAULT_REGION=$(curl -s 169.254.169.254/latest/dynamic/instance-identity/document | jq -r '.region')
 export AWS_ACCOUNT_ID="$(aws sts get-caller-identity --query Account --output text)"
 
@@ -243,13 +243,48 @@ spec:
 EOF
 ```
 
+Random load - restriction not more than 200 pods per node 
+
+```bash
+cat <<EOF | kubectl apply -f -
+apiVersion: karpenter.sh/v1alpha5
+kind: Provisioner
+metadata:
+  name: default
+spec:
+  requirements:
+    - key: karpenter.sh/capacity-type
+      operator: In
+      values: ["spot"]
+  limits:
+    resources:
+      cpu: 5000
+  kubeletConfiguration:
+    maxPods: 200
+  provider:
+    subnetSelector:
+      karpenter.sh/discovery: ${CLUSTER_NAME}
+    securityGroupSelector:
+      karpenter.sh/discovery: ${CLUSTER_NAME}
+  ttlSecondsAfterEmpty: 30
+EOF
+
+```
+
 Scale
 
 ```bash
+
 eksctl scale nodegroup --cluster=${CLUSTER_NAME} --nodes=2 --name=${CLUSTER_NAME}-ng
 k get no -L node.kubernetes.io/instance-type,kubernetes.io/arch,karpenter.sh/capacity-type 
 
 kubectl resource-capacity --sort cpu.limit
+
+ec2-instance-selector -o one-line --service eks
+ec2-instance-selector --memory 4 --vcpus 2 --cpu-architecture x86_64 -r us-east-1 -o table
+
+
+watch kubectl get deployment
 
 ```
 
@@ -263,6 +298,6 @@ kubectl logs -f -n karpenter -l app.kubernetes.io/name=karpenter -c controller
 Run stress test:
 
 ```bash
-./create.workload.sh 5000 500
+./create.workload.sh 5000 500 60 load
 ```
 
