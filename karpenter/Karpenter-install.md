@@ -285,6 +285,8 @@ ec2-instance-selector --memory 4 --vcpus 2 --cpu-architecture x86_64 -r us-east-
 
 
 watch kubectl get deployment
+watch 'kubectl get provisioners.karpenter.sh -o yaml | grep resources -C5 | tail -6'
+watch 'kubectl get deployments.apps | grep -v NAME | wc -l'
 
 ```
 
@@ -298,6 +300,6 @@ kubectl logs -f -n karpenter -l app.kubernetes.io/name=karpenter -c controller
 Run stress test:
 
 ```bash
-./create.workload.sh 5000 500 60 load
+./create.workload.sh 5000 500 load
 ```
 
