@@ -300,6 +300,6 @@ kubectl logs -f -n karpenter -l app.kubernetes.io/name=karpenter -c controller
 Run stress test:
 
 ```bash
-./create.workload.sh 5000 500 load
+./create.workload.sh 3000 500 load
 ```
 
