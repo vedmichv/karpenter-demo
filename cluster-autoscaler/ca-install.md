@@ -3,7 +3,7 @@
 Define variables:
 
 ```bash
-export CLUSTER_NAME="vedmich-ca-0825-01"
+export CLUSTER_NAME="vedmich-ca-0829-01"
 export AWS_DEFAULT_REGION=$(curl -s 169.254.169.254/latest/dynamic/instance-identity/document | jq -r '.region')
 export AWS_ACCOUNT_ID="$(aws sts get-caller-identity --query Account --output text)"
 ```

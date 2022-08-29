@@ -74,3 +74,11 @@ Apply skrew for pods
 ### Test when we confugure karpenter 
 - max pods
 - auto spread - reduce the cound of 
+- 
+
+```bash
+watch 'kubectl get pod | grep Running | wc -l'  
+watch 'kubectl get nodes | grep -v NAME | wc -l'  
+kubectl scale --replicas=25 deployment/inflate 
+
+```
