@@ -11,19 +11,22 @@ spec:
     metadata:
       labels:
         app: inflate
-spec:
-  terminationGracePeriodSeconds: 0
-  containers:
-    - name: inflate
-      image: public.ecr.aws/eks-distro/kubernetes/pause:3.2
-      resources:
-        requests:
-          cpu: "250m"
-          memory: "256Mi"
-  topologySpreadConstraints:
-  - maxSkew: 30
-    topologyKey: "kubernetes.io/hostname"
-    whenUnsatisfiable: ScheduleAnyway
-    labelSelector:
-      matchLabels:
-        app: inflate
+    spec:
+      terminationGracePeriodSeconds: 0
+      containers:
+        - name: inflate
+          image: public.ecr.aws/eks-distro/kubernetes/pause:3.2
+          resources:
+            requests:
+              cpu: "250m"
+              memory: "256Mi"
+      nodeSelector:
+        karpenter.sh/capacity-type: spot
+      topologySpreadConstraints:
+      - maxSkew: 30
+        topologyKey: "kubernetes.io/hostname"
+        whenUnsatisfiable: ScheduleAnyway
+        labelSelector:
+          matchLabels:
+            app: inflate
+            

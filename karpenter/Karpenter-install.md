@@ -7,7 +7,7 @@ Define variables:
 ```bash
 export KARPENTER_VERSION=v0.16.0
 
-export CLUSTER_NAME="vedmich-kr01-randmin-828-01"
+export CLUSTER_NAME="vedmich-kr01-827-01"
 export AWS_DEFAULT_REGION=$(curl -s 169.254.169.254/latest/dynamic/instance-identity/document | jq -r '.region')
 export AWS_ACCOUNT_ID="$(aws sts get-caller-identity --query Account --output text)"
 
@@ -32,9 +32,9 @@ managedNodeGroups:
   - instanceType: c5.2xlarge
     amiFamily: AmazonLinux2
     name: ${CLUSTER_NAME}-ng
-    desiredCapacity: 2
+    desiredCapacity: 1
     minSize: 1
-    maxSize: 10
+    maxSize: 2
 iam:
   withOIDC: true
 EOF

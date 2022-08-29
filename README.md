@@ -78,7 +78,8 @@ Apply skrew for pods
 
 ```bash
 watch 'kubectl get pod | grep Running | wc -l'  
-watch 'kubectl get nodes | grep -v NAME | wc -l'  
+watch 'kubectl get nodes | grep -v NAME | wc -l' 
+watch 'kubectl get nodes | grep -v NAME | wc -l' 
 kubectl scale --replicas=25 deployment/inflate 
 
 ```
