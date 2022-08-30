@@ -3,16 +3,49 @@ kind: Provisioner
 metadata:
   name: default
 spec:
+  consolidation:
+    enabled: false
+  ttlSecondsUntilExpired: 2592000 # 30 Days = 60 * 60 * 24 * 30 Seconds;
+  ttlSecondsAfterEmpty: 30
+  
+
+  weight: 10
+
+  taints:
+    - key: example.com/special-taint
+      effect: NoSchedule
+
+  # Labels are arbitrary key-values that are applied to all nodes
+  labels:
+    billing-team: my-team
+
   requirements:
-    - key: karpenter.sh/capacity-type
+    - key: "node.kubernetes.io/instance-type"
       operator: In
-      values: ["spot"]
+      values: ["m5.large", "m5.2xlarge"]
+    - key: "topology.kubernetes.io/zone"
+      operator: In
+      values: ["us-west-2a", "us-west-2b"]
+    - key: "kubernetes.io/arch"
+      operator: In
+      values: ["arm64", "amd64"]
+    - key: "karpenter.sh/capacity-type" # If not included, the webhook for the AWS cloud provider will default to on-demand
+      operator: In
+      values: ["spot", "on-demand"]
+
+  kubeletConfiguration:
+    clusterDNS: ["10.0.1.100"]
+    containerRuntime: containerd
+    systemReserved:
+      cpu: 1
+      memory: 5Gi
+      ephemeral-storage: 2Gi
+    maxPods: 20
+
   limits:
     resources:
-      cpu: 10000
-  provider:
-    subnetSelector:
-      karpenter.sh/discovery: vedmich-karpenter-01
-    securityGroupSelector:
-      karpenter.sh/discovery: vedmich-karpenter-01
-  ttlSecondsAfterEmpty: 30
+      cpu: "1000"
+      memory: 1000Gi
+
+  # These fields vary per cloud provider, see your cloud provider specific documentation
+  provider: {}

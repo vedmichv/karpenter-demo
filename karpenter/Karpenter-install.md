@@ -271,22 +271,23 @@ EOF
 
 ```
 
-Scale
+Scale and other usefull commands 
 
 ```bash
 
 eksctl scale nodegroup --cluster=${CLUSTER_NAME} --nodes=2 --name=${CLUSTER_NAME}-ng
-k get no -L node.kubernetes.io/instance-type,kubernetes.io/arch,karpenter.sh/capacity-type 
-
-kubectl resource-capacity --sort cpu.limit
 
 ec2-instance-selector -o one-line --service eks
 ec2-instance-selector --memory 4 --vcpus 2 --cpu-architecture x86_64 -r us-east-1 -o table
 
+kubectl resource-capacity --sort cpu.request
+k get no -L node.kubernetes.io/instance-type,kubernetes.io/arch,karpenter.sh/capacity-type 
 
 watch kubectl get deployment
 watch 'kubectl get provisioners.karpenter.sh -o yaml | grep resources -C5 | tail -6'
 watch 'kubectl get deployments.apps | grep -v NAME | wc -l'
+
+kubectl scale --replicas=5 deployment/inflate 
 
 ```
 
