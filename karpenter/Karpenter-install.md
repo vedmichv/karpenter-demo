@@ -5,9 +5,9 @@
 Define variables:
 
 ```bash
-export KARPENTER_VERSION=v0.16.0
+export KARPENTER_VERSION=v0.17.0
 
-export CLUSTER_NAME="vedmich-kr01-827-01"
+export CLUSTER_NAME="vedmich-kr-rd-1006-01"
 export AWS_DEFAULT_REGION=$(curl -s 169.254.169.254/latest/dynamic/instance-identity/document | jq -r '.region')
 export AWS_ACCOUNT_ID="$(aws sts get-caller-identity --query Account --output text)"
 
