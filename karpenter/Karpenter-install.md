@@ -264,6 +264,15 @@ spec:
 EOF
 
 ```
+Run stress test:
+
+```bash
+./create.workload.sh 3000 500
+```
+watch kubectl get deployment
+watch 'kubectl get nodes -L node.kubernetes.io/instance-type,kubernetes.io/arch,karpenter.sh/capacity-type'
+watch 'kubectl get provisioners.karpenter.sh -o yaml | grep resources -C5 | tail -6'
+watch 'kubectl get deployments.apps | grep -v NAME | wc -l'
 
 Scale and other usefull commands 
 
@@ -277,9 +286,7 @@ ec2-instance-selector --memory 4 --vcpus 2 --cpu-architecture x86_64 -r us-east-
 kubectl resource-capacity --sort cpu.request
 k get no -L node.kubernetes.io/instance-type,kubernetes.io/arch,karpenter.sh/capacity-type 
 
-watch kubectl get deployment
-watch 'kubectl get provisioners.karpenter.sh -o yaml | grep resources -C5 | tail -6'
-watch 'kubectl get deployments.apps | grep -v NAME | wc -l'
+
 
 kubectl scale --replicas=5 deployment/inflate 
 
@@ -292,9 +299,5 @@ Get logs from Karpenter:
 kubectl logs -f -n karpenter -l app.kubernetes.io/name=karpenter -c controller
 ```
 
-Run stress test:
 
-```bash
-./create.workload.sh 3000 500 load
-```
 
