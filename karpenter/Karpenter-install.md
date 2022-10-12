@@ -5,9 +5,9 @@
 Define variables:
 
 ```bash
-export KARPENTER_VERSION=v0.17.0
+export KARPENTER_VERSION=v0.18.0
 
-export CLUSTER_NAME="vedmich-kr-rd-1006-01"
+export CLUSTER_NAME="vedmich-kr-1012-01"
 export AWS_DEFAULT_REGION=$(curl -s 169.254.169.254/latest/dynamic/instance-identity/document | jq -r '.region')
 export AWS_ACCOUNT_ID="$(aws sts get-caller-identity --query Account --output text)"
 
@@ -99,13 +99,10 @@ export KARPENTER_IAM_ROLE_ARN="arn:aws:iam::${AWS_ACCOUNT_ID}:role/${CLUSTER_NAM
 ## Install karpenter Helm Chart
 
 ```bash
-helm repo add karpenter https://charts.karpenter.sh/
-helm repo update
 
 # check that our chart is fine
-helm install --debug --dry-run --namespace karpenter --create-namespace \
-  karpenter karpenter/karpenter \
-  --version ${KARPENTER_VERSION} \
+```bash
+helm install --debug --dry-run karpenter oci://public.ecr.aws/karpenter/karpenter --version ${KARPENTER_VERSION} --namespace karpenter --create-namespace \
   --set serviceAccount.annotations."eks\.amazonaws\.com/role-arn"=${KARPENTER_IAM_ROLE_ARN} \
   --set clusterName=${CLUSTER_NAME} \
   --set clusterEndpoint=${CLUSTER_ENDPOINT} \
@@ -118,9 +115,7 @@ helm install --debug --dry-run --namespace karpenter --create-namespace \
 
 Deploy Karpenter
 ```bash
-helm upgrade --install --namespace karpenter --create-namespace \
-  karpenter karpenter/karpenter \
-  --version ${KARPENTER_VERSION} \
+helm upgrade --install karpenter oci://public.ecr.aws/karpenter/karpenter --version ${KARPENTER_VERSION} --namespace karpenter --create-namespace \
   --set serviceAccount.annotations."eks\.amazonaws\.com/role-arn"=${KARPENTER_IAM_ROLE_ARN} \
   --set clusterName=${CLUSTER_NAME} \
   --set clusterEndpoint=${CLUSTER_ENDPOINT} \
@@ -129,8 +124,7 @@ helm upgrade --install --namespace karpenter --create-namespace \
   --set controller.resources.requests.memory=2Gi \
   --set controller.resources.limits.cpu=4 \
   --set controller.resources.limits.memory=4Gi \
-  --wait # for the defaulting webhook to install before creating a Provisioner
-
+  --wait
 ```
 
 Provisioner default with spot instances 
