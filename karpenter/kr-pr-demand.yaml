@@ -1,0 +1,30 @@
+apiVersion: karpenter.sh/v1alpha5
+kind: Provisioner
+metadata:
+  name: default
+spec:
+  requirements:
+  - key: karpenter.sh/capacity-type
+    operator: In
+    values:
+    - on-demand
+  - key: capacity-spread
+    operator: In
+    values:
+    - "1"
+    - "2"
+  - key: kubernetes.io/arch
+    operator: In
+    values:
+    - amd64
+  kubeletConfiguration:
+    maxPods: 30
+  limits:
+    resources:
+      cpu: "500"
+  provider:
+    securityGroupSelector:
+      karpenter.sh/discovery: vedmich-kr-1012-01
+    subnetSelector:
+      karpenter.sh/discovery: vedmich-kr-1012-01
+  ttlSecondsAfterEmpty: 30

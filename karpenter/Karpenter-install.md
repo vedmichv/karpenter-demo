@@ -152,6 +152,8 @@ spec:
 EOF
 
 ```
+
+
 # consolidation true
 
 ```bash
@@ -300,4 +302,69 @@ kubectl logs -f -n karpenter -l app.kubernetes.io/name=karpenter -c controller
 ```
 
 
+### Split load spot and on-demand isntances
 
+#### Spot provisioner 
+
+```bash
+cat <<EOF | kubectl apply -f -
+apiVersion: karpenter.sh/v1alpha5
+kind: Provisioner
+metadata:
+  name: spot-provisioner
+spec:
+  requirements:
+    - key: "karpenter.sh/capacity-type"
+      operator: In
+      values: [ "spot"]
+    - key: capacity-spread
+      operator: In
+      values:
+      - "3"
+      - "4"
+  limits:
+    resources:
+      cpu: 500
+  kubeletConfiguration:
+    maxPods: 30
+  provider:
+    subnetSelector:
+      karpenter.sh/discovery: ${CLUSTER_NAME}
+    securityGroupSelector:
+      karpenter.sh/discovery: ${CLUSTER_NAME}
+  ttlSecondsAfterEmpty: 30
+EOF
+```
+
+#### On-Demand Provisioner
+```bash
+cat <<EOF | kubectl apply -f -
+apiVersion: karpenter.sh/v1alpha5
+kind: Provisioner
+metadata:
+  name: on-demand-provisioner
+spec:
+  requirements:
+    - key: "karpenter.sh/capacity-type"
+      operator: In
+      values: [ "on-demand"]
+    - key: capacity-spread
+      operator: In
+      values:
+      - "1"
+      - "2"
+  limits:
+    resources:
+      cpu: 500
+  kubeletConfiguration:
+    maxPods: 30
+  provider:
+    subnetSelector:
+      karpenter.sh/discovery: ${CLUSTER_NAME}
+    securityGroupSelector:
+      karpenter.sh/discovery: ${CLUSTER_NAME}
+  ttlSecondsAfterEmpty: 30
+EOF
+```
+
+watch 'kubectl get nodes -L node.kubernetes.io/instance-type,kubernetes.io/arch,karpenter.sh/capacity-type'
