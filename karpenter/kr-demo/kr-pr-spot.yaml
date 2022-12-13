@@ -22,9 +22,15 @@ spec:
   limits:
     resources:
       cpu: "500"
-  provider:
-    securityGroupSelector:
-      karpenter.sh/discovery: vedmich-kr-1012-01
-    subnetSelector:
-      karpenter.sh/discovery: vedmich-kr-1012-01
   ttlSecondsAfterEmpty: 30
+
+---
+apiVersion: karpenter.k8s.aws/v1alpha1
+kind: AWSNodeTemplate
+metadata:
+  name: default
+spec:
+  subnetSelector:
+    karpenter.sh/discovery: kr-hl-01
+  securityGroupSelector:
+    karpenter.sh/discovery: kr-hl-01

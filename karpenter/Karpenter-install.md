@@ -5,9 +5,9 @@
 Define variables:
 
 ```bash
-export KARPENTER_VERSION=v0.18.0
+export KARPENTER_VERSION=v0.20.0
 
-export CLUSTER_NAME="vedmich-kr-1012-01"
+export CLUSTER_NAME="kr-hl-01"
 export AWS_DEFAULT_REGION=$(curl -s 169.254.169.254/latest/dynamic/instance-identity/document | jq -r '.region')
 export AWS_ACCOUNT_ID="$(aws sts get-caller-identity --query Account --output text)"
 
@@ -104,22 +104,23 @@ export KARPENTER_IAM_ROLE_ARN="arn:aws:iam::${AWS_ACCOUNT_ID}:role/${CLUSTER_NAM
 ```bash
 helm install --debug --dry-run karpenter oci://public.ecr.aws/karpenter/karpenter --version ${KARPENTER_VERSION} --namespace karpenter --create-namespace \
   --set serviceAccount.annotations."eks\.amazonaws\.com/role-arn"=${KARPENTER_IAM_ROLE_ARN} \
-  --set clusterName=${CLUSTER_NAME} \
-  --set clusterEndpoint=${CLUSTER_ENDPOINT} \
-  --set aws.defaultInstanceProfile=KarpenterNodeInstanceProfile-${CLUSTER_NAME} \
+  --set settings.aws.clusterName=${CLUSTER_NAME} \
+  --set settings.aws.clusterEndpoint=${CLUSTER_ENDPOINT} \
+  --set settings.aws.defaultInstanceProfile=KarpenterNodeInstanceProfile-${CLUSTER_NAME} \
+  --set settings.aws.interruptionQueueName=${CLUSTER_NAME} \
   --set controller.resources.requests.cpu=2 \
   --set controller.resources.requests.memory=2Gi \
   --set controller.resources.limits.cpu=4 \
   --set controller.resources.limits.memory=4Gi
 ```
-
 Deploy Karpenter
 ```bash
 helm upgrade --install karpenter oci://public.ecr.aws/karpenter/karpenter --version ${KARPENTER_VERSION} --namespace karpenter --create-namespace \
   --set serviceAccount.annotations."eks\.amazonaws\.com/role-arn"=${KARPENTER_IAM_ROLE_ARN} \
-  --set clusterName=${CLUSTER_NAME} \
-  --set clusterEndpoint=${CLUSTER_ENDPOINT} \
-  --set aws.defaultInstanceProfile=KarpenterNodeInstanceProfile-${CLUSTER_NAME} \
+  --set settings.aws.clusterName=${CLUSTER_NAME} \
+  --set settings.aws.clusterEndpoint=${CLUSTER_ENDPOINT} \
+  --set settings.aws.defaultInstanceProfile=KarpenterNodeInstanceProfile-${CLUSTER_NAME} \
+  --set settings.aws.interruptionQueueName=${CLUSTER_NAME} \
   --set controller.resources.requests.cpu=2 \
   --set controller.resources.requests.memory=2Gi \
   --set controller.resources.limits.cpu=4 \
@@ -143,12 +144,17 @@ spec:
   limits:
     resources:
       cpu: 1000
-  provider:
-    subnetSelector:
-      karpenter.sh/discovery: ${CLUSTER_NAME}
-    securityGroupSelector:
-      karpenter.sh/discovery: ${CLUSTER_NAME}
   ttlSecondsAfterEmpty: 30
+---
+apiVersion: karpenter.k8s.aws/v1alpha1
+kind: AWSNodeTemplate
+metadata:
+  name: default
+spec:
+  subnetSelector:
+    karpenter.sh/discovery: ${CLUSTER_NAME}
+  securityGroupSelector:
+    karpenter.sh/discovery: ${CLUSTER_NAME}
 EOF
 
 ```
@@ -172,11 +178,16 @@ spec:
   limits:
     resources:
       cpu: 1000
-  provider:
-    subnetSelector:
-      karpenter.sh/discovery: ${CLUSTER_NAME}
-    securityGroupSelector:
-      karpenter.sh/discovery: ${CLUSTER_NAME}
+---
+apiVersion: karpenter.k8s.aws/v1alpha1
+kind: AWSNodeTemplate
+metadata:
+  name: default
+spec:
+  subnetSelector:
+    karpenter.sh/discovery: ${CLUSTER_NAME}
+  securityGroupSelector:
+    karpenter.sh/discovery: ${CLUSTER_NAME}
 EOF
 
 ```
