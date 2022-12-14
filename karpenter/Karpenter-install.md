@@ -98,9 +98,8 @@ export KARPENTER_IAM_ROLE_ARN="arn:aws:iam::${AWS_ACCOUNT_ID}:role/${CLUSTER_NAM
 
 ## Install karpenter Helm Chart
 
-```bash
+Dry-run chart
 
-# check that our chart is fine
 ```bash
 helm install --debug --dry-run karpenter oci://public.ecr.aws/karpenter/karpenter --version ${KARPENTER_VERSION} --namespace karpenter --create-namespace \
   --set serviceAccount.annotations."eks\.amazonaws\.com/role-arn"=${KARPENTER_IAM_ROLE_ARN} \
@@ -113,7 +112,9 @@ helm install --debug --dry-run karpenter oci://public.ecr.aws/karpenter/karpente
   --set controller.resources.limits.cpu=4 \
   --set controller.resources.limits.memory=4Gi
 ```
+
 Deploy Karpenter
+
 ```bash
 helm upgrade --install karpenter oci://public.ecr.aws/karpenter/karpenter --version ${KARPENTER_VERSION} --namespace karpenter --create-namespace \
   --set serviceAccount.annotations."eks\.amazonaws\.com/role-arn"=${KARPENTER_IAM_ROLE_ARN} \
@@ -128,7 +129,7 @@ helm upgrade --install karpenter oci://public.ecr.aws/karpenter/karpenter --vers
   --wait
 ```
 
-Provisioner default with spot instances 
+### Provisioner default with spot instances 
 
 ```bash
 cat <<EOF | kubectl apply -f -
@@ -144,6 +145,8 @@ spec:
   limits:
     resources:
       cpu: 1000
+  providerRef:
+    name: default
   ttlSecondsAfterEmpty: 30
 ---
 apiVersion: karpenter.k8s.aws/v1alpha1
@@ -156,11 +159,9 @@ spec:
   securityGroupSelector:
     karpenter.sh/discovery: ${CLUSTER_NAME}
 EOF
-
 ```
 
-
-# consolidation true
+### Consolidation true
 
 ```bash
 cat <<EOF | kubectl apply -f -
@@ -178,6 +179,8 @@ spec:
   limits:
     resources:
       cpu: 1000
+  providerRef:
+    name: default
 ---
 apiVersion: karpenter.k8s.aws/v1alpha1
 kind: AWSNodeTemplate
@@ -189,68 +192,10 @@ spec:
   securityGroupSelector:
     karpenter.sh/discovery: ${CLUSTER_NAME}
 EOF
-
 ```
 
 
-restriction count of pods per node
-```bash
-cat <<EOF | kubectl apply -f -
-apiVersion: karpenter.sh/v1alpha5
-kind: Provisioner
-metadata:
-  name: default
-spec:
-  requirements:
-    - key: karpenter.sh/capacity-type
-      operator: In
-      values: ["spot"]
-  limits:
-    resources:
-      cpu: 1000
-  kubeletConfiguration:
-    containerRuntime: containerd
-    maxPods: 20
-  provider:
-    subnetSelector:
-      karpenter.sh/discovery: ${CLUSTER_NAME}
-    securityGroupSelector:
-      karpenter.sh/discovery: ${CLUSTER_NAME}
-  ttlSecondsAfterEmpty: 30
-EOF
-```
-Restriction with daemonset configuration (reserve capacity for daemonsets)
-```bash
-cat <<EOF | kubectl apply -f -
-apiVersion: karpenter.sh/v1alpha5
-kind: Provisioner
-metadata:
-  name: default
-spec:
-  requirements:
-    - key: karpenter.sh/capacity-type
-      operator: In
-      values: ["spot"]
-  limits:
-    resources:
-      cpu: 1000
-  kubeletConfiguration:
-    containerRuntime: containerd
-    systemReserved:
-      cpu: 1
-      memory: 1Gi
-      ephemeral-storage: 2Gi
-    maxPods: 20
-  provider:
-    subnetSelector:
-      karpenter.sh/discovery: ${CLUSTER_NAME}
-    securityGroupSelector:
-      karpenter.sh/discovery: ${CLUSTER_NAME}
-  ttlSecondsAfterEmpty: 30
-EOF
-```
-
-Random load - restriction not more than 200 pods per node 
+### Random load - restriction not more than 200 pods per node 
 
 ```bash
 cat <<EOF | kubectl apply -f -
@@ -268,12 +213,19 @@ spec:
       cpu: 5000
   kubeletConfiguration:
     maxPods: 200
-  provider:
-    subnetSelector:
-      karpenter.sh/discovery: ${CLUSTER_NAME}
-    securityGroupSelector:
-      karpenter.sh/discovery: ${CLUSTER_NAME}
   ttlSecondsAfterEmpty: 30
+  providerRef:
+    name: default
+---
+apiVersion: karpenter.k8s.aws/v1alpha1
+kind: AWSNodeTemplate
+metadata:
+  name: default
+spec:
+  subnetSelector:
+    karpenter.sh/discovery: ${CLUSTER_NAME}
+  securityGroupSelector:
+    karpenter.sh/discovery: ${CLUSTER_NAME}
 EOF
 
 ```

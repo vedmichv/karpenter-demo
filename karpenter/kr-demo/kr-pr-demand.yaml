@@ -22,6 +22,8 @@ spec:
   limits:
     resources:
       cpu: "500"
+  providerRef:
+    name: default
   ttlSecondsAfterEmpty: 30
   
 ---
