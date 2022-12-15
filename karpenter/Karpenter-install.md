@@ -204,7 +204,7 @@ Run stress test:
 ```bash
 ./create.workload.sh 3000 500
 ```
-watch kubectl get deployment
+watch 'kubectl get deployment'
 watch 'kubectl get nodes -L node.kubernetes.io/instance-type,kubernetes.io/arch,karpenter.sh/capacity-type'
 watch 'kubectl get provisioners.karpenter.sh -o yaml | grep resources -C5 | tail -6'
 watch 'kubectl get deployments.apps | grep -v NAME | wc -l'
