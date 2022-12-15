@@ -1,6 +1,8 @@
 
 # Process of installation EKS cluster with Karpenter
 
+Link to hl cluster 
+Link to randmon cluster 
 
 Define variables:
 
@@ -147,40 +149,8 @@ spec:
       cpu: 1000
   providerRef:
     name: default
-  ttlSecondsAfterEmpty: 30
----
-apiVersion: karpenter.k8s.aws/v1alpha1
-kind: AWSNodeTemplate
-metadata:
-  name: default
-spec:
-  subnetSelector:
-    karpenter.sh/discovery: ${CLUSTER_NAME}
-  securityGroupSelector:
-    karpenter.sh/discovery: ${CLUSTER_NAME}
-EOF
-```
-
-### Consolidation true
-
-```bash
-cat <<EOF | kubectl apply -f -
-apiVersion: karpenter.sh/v1alpha5
-kind: Provisioner
-metadata:
-  name: default
-spec:
   consolidation:
     enabled: true
-  requirements:
-    - key: karpenter.sh/capacity-type
-      operator: In
-      values: ["spot"]
-  limits:
-    resources:
-      cpu: 1000
-  providerRef:
-    name: default
 ---
 apiVersion: karpenter.k8s.aws/v1alpha1
 kind: AWSNodeTemplate
@@ -193,7 +163,6 @@ spec:
     karpenter.sh/discovery: ${CLUSTER_NAME}
 EOF
 ```
-
 
 ### Random load - restriction not more than 200 pods per node 
 
@@ -213,7 +182,8 @@ spec:
       cpu: 5000
   kubeletConfiguration:
     maxPods: 200
-  ttlSecondsAfterEmpty: 30
+  consolidation:
+    enabled: true
   providerRef:
     name: default
 ---
@@ -267,67 +237,6 @@ kubectl logs -f -n karpenter -l app.kubernetes.io/name=karpenter -c controller
 
 ### Split load spot and on-demand isntances
 
-#### Spot provisioner 
-
-```bash
-cat <<EOF | kubectl apply -f -
-apiVersion: karpenter.sh/v1alpha5
-kind: Provisioner
-metadata:
-  name: spot-provisioner
-spec:
-  requirements:
-    - key: "karpenter.sh/capacity-type"
-      operator: In
-      values: [ "spot"]
-    - key: capacity-spread
-      operator: In
-      values:
-      - "3"
-      - "4"
-  limits:
-    resources:
-      cpu: 500
-  kubeletConfiguration:
-    maxPods: 30
-  provider:
-    subnetSelector:
-      karpenter.sh/discovery: ${CLUSTER_NAME}
-    securityGroupSelector:
-      karpenter.sh/discovery: ${CLUSTER_NAME}
-  ttlSecondsAfterEmpty: 30
-EOF
-```
-
-#### On-Demand Provisioner
-```bash
-cat <<EOF | kubectl apply -f -
-apiVersion: karpenter.sh/v1alpha5
-kind: Provisioner
-metadata:
-  name: on-demand-provisioner
-spec:
-  requirements:
-    - key: "karpenter.sh/capacity-type"
-      operator: In
-      values: [ "on-demand"]
-    - key: capacity-spread
-      operator: In
-      values:
-      - "1"
-      - "2"
-  limits:
-    resources:
-      cpu: 500
-  kubeletConfiguration:
-    maxPods: 30
-  provider:
-    subnetSelector:
-      karpenter.sh/discovery: ${CLUSTER_NAME}
-    securityGroupSelector:
-      karpenter.sh/discovery: ${CLUSTER_NAME}
-  ttlSecondsAfterEmpty: 30
-EOF
-```
+The manifests located on kr-demo folder.  
 
 watch 'kubectl get nodes -L node.kubernetes.io/instance-type,kubernetes.io/arch,karpenter.sh/capacity-type'
