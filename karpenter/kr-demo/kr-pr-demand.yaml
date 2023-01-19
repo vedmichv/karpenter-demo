@@ -34,6 +34,6 @@ metadata:
   name: default
 spec:
   subnetSelector:
-    karpenter.sh/discovery: kr-hl-01
+    karpenter.sh/discovery: kr-kiv-01
   securityGroupSelector:
-    karpenter.sh/discovery: kr-hl-01
+    karpenter.sh/discovery: kr-kiv-01
