@@ -1,15 +1,15 @@
 
 # Process of installation EKS cluster with Karpenter
 
-Link to hl cluster 
+Link to kiv cluster 
 Link to randmon cluster 
 
 Define variables:
 
 ```bash
-export KARPENTER_VERSION=v0.20.0
+export KARPENTER_VERSION=v0.22.1
 
-export CLUSTER_NAME="kr-hl-01"
+export CLUSTER_NAME="kr-kiv-01"
 export AWS_DEFAULT_REGION=$(curl -s 169.254.169.254/latest/dynamic/instance-identity/document | jq -r '.region')
 export AWS_ACCOUNT_ID="$(aws sts get-caller-identity --query Account --output text)"
 
@@ -95,6 +95,7 @@ eksctl create iamserviceaccount \
 
 export KARPENTER_IAM_ROLE_ARN="arn:aws:iam::${AWS_ACCOUNT_ID}:role/${CLUSTER_NAME}-karpenter"
 
+
 ```
 
 
@@ -129,6 +130,8 @@ helm upgrade --install karpenter oci://public.ecr.aws/karpenter/karpenter --vers
   --set controller.resources.limits.cpu=4 \
   --set controller.resources.limits.memory=4Gi \
   --wait
+  
+
 ```
 
 ### Provisioner default with spot instances 
