@@ -7,41 +7,80 @@ Link to randmon cluster
 Define variables:
 
 ```bash
-export KARPENTER_VERSION=v0.22.1
+export KARPENTER_VERSION=v0.24.0
 
-export CLUSTER_NAME="kr-kiv-01"
+export CLUSTER_NAME="kr-nor-01"
 export AWS_DEFAULT_REGION=$(curl -s 169.254.169.254/latest/dynamic/instance-identity/document | jq -r '.region')
 export AWS_ACCOUNT_ID="$(aws sts get-caller-identity --query Account --output text)"
-
+export TEMPOUT=$(mktemp)
 # check that we correctly configure our vars
 echo $KARPENTER_VERSION $CLUSTER_NAME $AWS_DEFAULT_REGION $AWS_ACCOUNT_ID
-
 ```
 
 
+
 ```bash
-eksctl create cluster -f - << EOF
+curl -fsSL https://karpenter.sh/"${KARPENTER_VERSION}"/getting-started/getting-started-with-eksctl/cloudformation.yaml  > $TEMPOUT \
+&& aws cloudformation deploy \
+  --stack-name "Karpenter-${CLUSTER_NAME}" \
+  --template-file "${TEMPOUT}" \
+  --capabilities CAPABILITY_NAMED_IAM \
+  --parameter-overrides "ClusterName=${CLUSTER_NAME}"
+
+eksctl create cluster -f - <<EOF
 ---
 apiVersion: eksctl.io/v1alpha5
 kind: ClusterConfig
 metadata:
   name: ${CLUSTER_NAME}
   region: ${AWS_DEFAULT_REGION}
-  version: "1.23"
+  version: "1.24"
   tags:
     karpenter.sh/discovery: ${CLUSTER_NAME}
-managedNodeGroups:
-  - instanceType: c5.2xlarge
-    amiFamily: AmazonLinux2
-    name: ${CLUSTER_NAME}-ng
-    desiredCapacity: 1
-    minSize: 1
-    maxSize: 2
+
 iam:
   withOIDC: true
+  serviceAccounts:
+  - metadata:
+      name: karpenter
+      namespace: karpenter
+    roleName: ${CLUSTER_NAME}-karpenter
+    attachPolicyARNs:
+    - arn:aws:iam::${AWS_ACCOUNT_ID}:policy/KarpenterControllerPolicy-${CLUSTER_NAME}
+    roleOnly: true
+
+iamIdentityMappings:
+- arn: "arn:aws:iam::${AWS_ACCOUNT_ID}:role/KarpenterNodeRole-${CLUSTER_NAME}"
+  username: system:node:{{EC2PrivateDNSName}}
+  groups:
+  - system:bootstrappers
+  - system:nodes
+
+managedNodeGroups:
+- instanceType: c5.2xlarge
+  amiFamily: AmazonLinux2
+  name: ${CLUSTER_NAME}-ng
+  desiredCapacity: 1
+  minSize: 1
+  maxSize: 10
+
+## Optionally run on fargate
+# fargateProfiles:
+# - name: karpenter
+#  selectors:
+#  - namespace: karpenter
 EOF
 
 export CLUSTER_ENDPOINT="$(aws eks describe-cluster --name ${CLUSTER_NAME} --query "cluster.endpoint" --output text)"
+export KARPENTER_IAM_ROLE_ARN="arn:aws:iam::${AWS_ACCOUNT_ID}:role/${CLUSTER_NAME}-karpenter"
+
+echo $CLUSTER_ENDPOINT $KARPENTER_IAM_ROLE_ARN
+
+aws iam create-service-linked-role --aws-service-name spot.amazonaws.com || true
+# If the role has already been successfully created, you will see:
+# An error occurred (InvalidInput) when calling the CreateServiceLinkedRole operation: Service role name AWSServiceRoleForEC2Spot has been taken in this account, please try a different suffix.
+
+docker logout public.ecr.aws
 ```
 
 Kube-ops-view is required for the demo
@@ -57,45 +96,6 @@ Kube-Ops-View
 cd ~/environment/karpenter-demo/kube-ops-view/
 kubectl apply -k deploy 
 kubectl get pod,svc,sa
-```
-
-
-Create IAM Role
-
-```bash
-TEMPOUT=$(mktemp)
-
-curl -fsSL https://karpenter.sh/"${KARPENTER_VERSION}"/getting-started/getting-started-with-eksctl/cloudformation.yaml  > $TEMPOUT \
-&& aws cloudformation deploy \
-  --stack-name "Karpenter-${CLUSTER_NAME}" \
-  --template-file "${TEMPOUT}" \
-  --capabilities CAPABILITY_NAMED_IAM \
-  --parameter-overrides "ClusterName=${CLUSTER_NAME}"
-  
-
-eksctl create iamidentitymapping \
-  --username system:node:{{EC2PrivateDNSName}} \
-  --cluster "${CLUSTER_NAME}" \
-  --arn "arn:aws:iam::${AWS_ACCOUNT_ID}:role/KarpenterNodeRole-${CLUSTER_NAME}" \
-  --group system:bootstrappers \
-  --group system:nodes
-
-
-```
-
-Controller IAM role
-
-```bash
-eksctl create iamserviceaccount \
-  --cluster "${CLUSTER_NAME}" --name karpenter --namespace karpenter \
-  --role-name "${CLUSTER_NAME}-karpenter" \
-  --attach-policy-arn "arn:aws:iam::${AWS_ACCOUNT_ID}:policy/KarpenterControllerPolicy-${CLUSTER_NAME}" \
-  --role-only \
-  --approve
-
-export KARPENTER_IAM_ROLE_ARN="arn:aws:iam::${AWS_ACCOUNT_ID}:role/${CLUSTER_NAME}-karpenter"
-
-
 ```
 
 
@@ -115,6 +115,7 @@ helm install --debug --dry-run karpenter oci://public.ecr.aws/karpenter/karpente
   --set controller.resources.limits.cpu=4 \
   --set controller.resources.limits.memory=4Gi
 ```
+
 
 Deploy Karpenter
 
