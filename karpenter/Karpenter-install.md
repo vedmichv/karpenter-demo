@@ -7,9 +7,9 @@ Link to randmon cluster
 Define variables:
 
 ```bash
-export KARPENTER_VERSION=v0.24.0
+export KARPENTER_VERSION=v0.27.1
 
-export CLUSTER_NAME="kr-nor-01"
+export CLUSTER_NAME="kr-bishkek-01"
 export AWS_DEFAULT_REGION=$(curl -s 169.254.169.254/latest/dynamic/instance-identity/document | jq -r '.region')
 export AWS_ACCOUNT_ID="$(aws sts get-caller-identity --query Account --output text)"
 export TEMPOUT=$(mktemp)
@@ -20,12 +20,13 @@ echo $KARPENTER_VERSION $CLUSTER_NAME $AWS_DEFAULT_REGION $AWS_ACCOUNT_ID
 
 
 ```bash
-curl -fsSL https://karpenter.sh/"${KARPENTER_VERSION}"/getting-started/getting-started-with-eksctl/cloudformation.yaml  > $TEMPOUT \
+curl -fsSL https://karpenter.sh/"${KARPENTER_VERSION}"/getting-started/getting-started-with-karpenter/cloudformation.yaml  > $TEMPOUT \
 && aws cloudformation deploy \
   --stack-name "Karpenter-${CLUSTER_NAME}" \
   --template-file "${TEMPOUT}" \
   --capabilities CAPABILITY_NAMED_IAM \
   --parameter-overrides "ClusterName=${CLUSTER_NAME}"
+
 
 eksctl create cluster -f - <<EOF
 ---
@@ -60,15 +61,10 @@ managedNodeGroups:
 - instanceType: c5.2xlarge
   amiFamily: AmazonLinux2
   name: ${CLUSTER_NAME}-ng
-  desiredCapacity: 1
+  desiredCapacity: 2
   minSize: 1
-  maxSize: 10
+  maxSize: 5
 
-## Optionally run on fargate
-# fargateProfiles:
-# - name: karpenter
-#  selectors:
-#  - namespace: karpenter
 EOF
 
 export CLUSTER_ENDPOINT="$(aws eks describe-cluster --name ${CLUSTER_NAME} --query "cluster.endpoint" --output text)"
@@ -123,7 +119,6 @@ Deploy Karpenter
 helm upgrade --install karpenter oci://public.ecr.aws/karpenter/karpenter --version ${KARPENTER_VERSION} --namespace karpenter --create-namespace \
   --set serviceAccount.annotations."eks\.amazonaws\.com/role-arn"=${KARPENTER_IAM_ROLE_ARN} \
   --set settings.aws.clusterName=${CLUSTER_NAME} \
-  --set settings.aws.clusterEndpoint=${CLUSTER_ENDPOINT} \
   --set settings.aws.defaultInstanceProfile=KarpenterNodeInstanceProfile-${CLUSTER_NAME} \
   --set settings.aws.interruptionQueueName=${CLUSTER_NAME} \
   --set controller.resources.requests.cpu=2 \
@@ -131,8 +126,6 @@ helm upgrade --install karpenter oci://public.ecr.aws/karpenter/karpenter --vers
   --set controller.resources.limits.cpu=4 \
   --set controller.resources.limits.memory=4Gi \
   --wait
-  
-
 ```
 
 ### Provisioner default with spot instances 
