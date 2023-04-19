@@ -4,7 +4,7 @@
 
 To configure your cloud9 environment use the doc [cloud9-configuration](https://github.com/vedmichv/karpenter-demo/blob/main/cloud9-config.md)
 
-Link to karpenter cluster 
+Link to karpenter cluster http://ae11d3da8ab5d4dd2a765c3a28d2a6b4-1193830627.eu-north-1.elb.amazonaws.com/
 Link to high-load karpenter cluster 
 
 The best way to install cluster use the official documentation https://karpenter.sh/v0.27.2/getting-started/getting-started-with-karpenter/
@@ -24,6 +24,8 @@ echo $KARPENTER_VERSION $CLUSTER_NAME $AWS_DEFAULT_REGION $AWS_ACCOUNT_ID
 
 We use the bigger size of EC2 instance: `c5.2xlarge` to cover our high load example
 
+#### Use CloudFormation to set up the infrastructure needed by the EKS cluster.
+
 ```bash
 curl -fsSL https://karpenter.sh/"${KARPENTER_VERSION}"/getting-started/getting-started-with-karpenter/cloudformation.yaml  > $TEMPOUT \
 && aws cloudformation deploy \
@@ -31,8 +33,11 @@ curl -fsSL https://karpenter.sh/"${KARPENTER_VERSION}"/getting-started/getting-s
   --template-file "${TEMPOUT}" \
   --capabilities CAPABILITY_NAMED_IAM \
   --parameter-overrides "ClusterName=${CLUSTER_NAME}"
+```
 
+#### Deploy EKS cluster 
 
+```bash
 eksctl create cluster -f - <<EOF
 ---
 apiVersion: eksctl.io/v1alpha5
@@ -40,7 +45,7 @@ kind: ClusterConfig
 metadata:
   name: ${CLUSTER_NAME}
   region: ${AWS_DEFAULT_REGION}
-  version: "1.26"
+  version: "1.25"
   tags:
     karpenter.sh/discovery: ${CLUSTER_NAME}
 
@@ -77,10 +82,17 @@ export KARPENTER_IAM_ROLE_ARN="arn:aws:iam::${AWS_ACCOUNT_ID}:role/${CLUSTER_NAM
 
 echo $CLUSTER_ENDPOINT $KARPENTER_IAM_ROLE_ARN
 
+```
+
+If never use spot on the account run the command
+```bash
 aws iam create-service-linked-role --aws-service-name spot.amazonaws.com || true
 # If the role has already been successfully created, you will see:
 # An error occurred (InvalidInput) when calling the CreateServiceLinkedRole operation: Service role name AWSServiceRoleForEC2Spot has been taken in this account, please try a different suffix.
+```
 
+To avoid issue with ECR - logout 
+```bash
 docker logout public.ecr.aws
 ```
 
