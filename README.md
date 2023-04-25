@@ -12,9 +12,9 @@ The best way to install cluster use the official documentation https://karpenter
 Define variables:
 
 ```bash
-export KARPENTER_VERSION=v0.27.2
+export KARPENTER_VERSION=v0.27.3
 
-export CLUSTER_NAME="kr-ljubljana-01"
+export CLUSTER_NAME="kr-cyprus-01"
 export AWS_DEFAULT_REGION=$(curl -s 169.254.169.254/latest/dynamic/instance-identity/document | jq -r '.region')
 export AWS_ACCOUNT_ID="$(aws sts get-caller-identity --query Account --output text)"
 export TEMPOUT=$(mktemp)
