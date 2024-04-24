@@ -266,11 +266,27 @@ It will create 3000 pods with batch 500 pods per deployment. Resource request ra
 ./create.workload.sh 3000 500
 ```
 
-## Demo 1 - show Karpenter 
+## Demo 1 - show Karpenter in action first 10 pod 
 Deploy inflate deployment 
 10 pod 
-60 pod 
-Demostrat consolidation 
+```bash
+cd 
+k apply -f 
+```
+
+
+60 pod - Demostrate consolidation 
+
+```bash
+# scale deployment
+kubectl scale --replicas=60 deployment/inflate 
+```
+
+## Demo 2- Split load spot and on-demand isntances
+
+The manifests located on kr-demo folder.  
+
+watch 'kubectl get nodes -L node.kubernetes.io/instance-type,kubernetes.io/arch,karpenter.sh/capacity-type'
 
 ### Usefull commands to check status of deployment
 
@@ -281,20 +297,11 @@ watch 'kubectl get deployments.apps | grep -v NAME | wc -l'
 ```
 
 
-
 Get logs from Karpenter:
 
 ```bash
 kubectl logs -f -n "${KARPENTER_NAMESPACE}" -l app.kubernetes.io/name=karpenter -c controller
 ```
-
-
-
-### Split load spot and on-demand isntances
-
-The manifests located on kr-demo folder.  
-
-watch 'kubectl get nodes -L node.kubernetes.io/instance-type,kubernetes.io/arch,karpenter.sh/capacity-type'
 
 
 Scale and other usefull commands 
@@ -308,7 +315,5 @@ ec2-instance-selector --memory 4 --vcpus 2 --cpu-architecture x86_64 -r us-east-
 # External plugin for kubernetes to show what the resources currently is used by cluster
 kubectl resource-capacity --sort cpu.request
 kubectl get no -L node.kubernetes.io/instance-type,kubernetes.io/arch,karpenter.sh/capacity-type 
-# scale deployment
-kubectl scale --replicas=5 deployment/inflate 
 
 ```
