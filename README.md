@@ -317,3 +317,24 @@ kubectl resource-capacity --sort cpu.request
 kubectl get no -L node.kubernetes.io/instance-type,kubernetes.io/arch,karpenter.sh/capacity-type 
 
 ```
+
+
+## Delete all resources
+
+### Delete internal resources
+```bash
+kubectl delete  -f https://github.com/kubernetes-sigs/metrics-server/releases/latest/download/components.yaml
+cd ~/environment/karpenter-demo/kube-ops-view/
+kubectl delete -k deploy
+```
+
+
+```bash
+helm uninstall karpenter --namespace "${KARPENTER_NAMESPACE}"
+aws cloudformation delete-stack --stack-name "Karpenter-${CLUSTER_NAME}"
+aws ec2 describe-launch-templates --filters "Name=tag:karpenter.k8s.aws/cluster,Values=${CLUSTER_NAME}" |
+    jq -r ".LaunchTemplates[].LaunchTemplateName" |
+    xargs -I{} aws ec2 delete-launch-template --launch-template-name {}
+eksctl delete cluster --name "${CLUSTER_NAME}"
+
+```
