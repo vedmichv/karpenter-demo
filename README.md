@@ -4,7 +4,8 @@
 
 To configure your cloud9 environment use the doc [cloud9-configuration](https://github.com/vedmichv/karpenter-demo/blob/main/cloud9-config.md)
 
-Link to karpenter cluster http://ae11d3da8ab5d4dd2a765c3a28d2a6b4-1193830627.eu-north-1.elb.amazonaws.com/
+Link to karpenter cluster http://a0735634d24494ef0af2636a05990d13-407729810.eu-north-1.elb.amazonaws.com/ cluster 1
+
 Link to high-load karpenter cluster 
 
 The best way to install cluster use the official documentation https://karpenter.sh/v0.27.2/getting-started/getting-started-with-karpenter/
@@ -17,7 +18,7 @@ export KARPENTER_VERSION="0.36.0"
 export K8S_VERSION="1.29"
 
 
-export CLUSTER_NAME="kr-astana-high-load-01"
+export CLUSTER_NAME="kr-montenegro-01"
 export AWS_PARTITION="aws" 
 export AWS_DEFAULT_REGION="eu-north-1"
 export AWS_ACCOUNT_ID="$(aws sts get-caller-identity --query Account --output text)"
