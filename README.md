@@ -4,7 +4,7 @@
 
 To configure your cloud9 environment use the doc [cloud9-configuration](https://github.com/vedmichv/karpenter-demo/blob/main/cloud9-config.md)
 
-Link to karpenter cluster http://a0735634d24494ef0af2636a05990d13-407729810.eu-north-1.elb.amazonaws.com/ cluster 1
+Link to karpenter cluster a40f82dc6033f44cca6f25998f3081b0-1690317567.eu-north-1.elb.amazonaws.com cluster 1
 
 Link to high-load karpenter cluster 
 
@@ -14,11 +14,11 @@ Define variables:
 
 ```bash
 export KARPENTER_NAMESPACE="kube-system"
-export KARPENTER_VERSION="0.36.0"
+export KARPENTER_VERSION="0.37.0"
 export K8S_VERSION="1.29"
 
 
-export CLUSTER_NAME="kr-montenegro-01"
+export CLUSTER_NAME="kr-mongolia-01"
 export AWS_PARTITION="aws" 
 export AWS_DEFAULT_REGION="eu-north-1"
 export AWS_ACCOUNT_ID="$(aws sts get-caller-identity --query Account --output text)"
