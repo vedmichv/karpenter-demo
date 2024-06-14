@@ -182,7 +182,9 @@ spec:
     cpu: 1000
   disruption:
     consolidationPolicy: WhenUnderutilized
-    expireAfter: 720h 
+    expireAfter: 720h
+    budgets:
+    - nodes: "90%"
 ---
 apiVersion: karpenter.k8s.aws/v1beta1
 kind: EC2NodeClass
