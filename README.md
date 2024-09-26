@@ -14,11 +14,11 @@ Define variables:
 
 ```bash
 export KARPENTER_NAMESPACE="kube-system"
-export KARPENTER_VERSION="0.37.0"
-export K8S_VERSION="1.29"
+export KARPENTER_VERSION="1.0.3"
+export K8S_VERSION="1.30"
 
 
-export CLUSTER_NAME="kr-mongolia-01"
+export CLUSTER_NAME="karpenter-demo-01"
 export AWS_PARTITION="aws" 
 export AWS_DEFAULT_REGION="eu-north-1"
 export AWS_ACCOUNT_ID="$(aws sts get-caller-identity --query Account --output text)"
@@ -184,7 +184,7 @@ spec:
     consolidationPolicy: WhenUnderutilized
     expireAfter: 720h
     budgets:
-    - nodes: "90%"
+    - nodes: "100%"
 ---
 apiVersion: karpenter.k8s.aws/v1beta1
 kind: EC2NodeClass
