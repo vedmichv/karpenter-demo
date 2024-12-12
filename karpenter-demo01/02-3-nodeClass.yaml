@@ -1,0 +1,18 @@
+apiVersion: karpenter.k8s.aws/v1
+kind: EC2NodeClass
+metadata:
+  name: default
+spec:
+  amiFamily: AL2 
+  role: "KarpenterNodeRole-karpenter-demo-12-12-01"
+  kubelet:
+    maxPods: 30
+  subnetSelectorTerms:
+    - tags:
+        karpenter.sh/discovery: "karpenter-demo-12-12-01"
+  securityGroupSelectorTerms:
+    - tags:
+        karpenter.sh/discovery: "karpenter-demo-12-12-01"
+  amiSelectorTerms:
+    - id: "ami-07a8e09b39fef6ea0"
+    - id: "ami-00a68ef3762aafb12"

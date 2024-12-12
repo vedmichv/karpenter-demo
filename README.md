@@ -4,7 +4,9 @@
 
 To configure your cloud9 environment use the doc [cloud9-configuration](https://github.com/vedmichv/karpenter-demo/blob/main/cloud9-config.md)
 
-Link to karpenter cluster a40f82dc6033f44cca6f25998f3081b0-1690317567.eu-north-1.elb.amazonaws.com cluster 1
+Link to karpenter cluster aa8ae47ca6c7941fa80620d41a37424d-1317174961.eu-north-1.elb.amazonaws.com cluster 1
+
+http://aa8ae47ca6c7941fa80620d41a37424d-1317174961.eu-north-1.elb.amazonaws.com/
 
 Link to high-load karpenter cluster 
 
@@ -14,11 +16,11 @@ Define variables:
 
 ```bash
 export KARPENTER_NAMESPACE="kube-system"
-export KARPENTER_VERSION="1.0.3"
+export KARPENTER_VERSION="1.1.0"
 export K8S_VERSION="1.30"
 
 
-export CLUSTER_NAME="karpenter-demo-01"
+export CLUSTER_NAME="karpenter-demo-12-12-01"
 export AWS_PARTITION="aws" 
 export AWS_DEFAULT_REGION="eu-north-1"
 export AWS_ACCOUNT_ID="$(aws sts get-caller-identity --query Account --output text)"
@@ -157,7 +159,7 @@ helm upgrade --install karpenter oci://public.ecr.aws/karpenter/karpenter --vers
 
 ```bash
 cat <<EOF | envsubst | kubectl apply -f -
-apiVersion: karpenter.sh/v1beta1
+apiVersion: karpenter.sh/v1
 kind: NodePool
 metadata:
   name: default
@@ -174,19 +176,21 @@ spec:
         - key: karpenter.sh/capacity-type
           operator: In
           values: ["spot"]
+        - key: karpenter.k8s.aws/instance-generation
+          operator: Gt
+          values: ["2"]
       nodeClassRef:
-        apiVersion: karpenter.k8s.aws/v1beta1
+        group: karpenter.k8s.aws
         kind: EC2NodeClass
         name: default
+      expireAfter: 720h
   limits:
     cpu: 1000
   disruption:
-    consolidationPolicy: WhenUnderutilized
-    expireAfter: 720h
-    budgets:
-    - nodes: "100%"
+    consolidationPolicy: WhenEmptyOrUnderutilized
+    consolidateAfter: 1s
 ---
-apiVersion: karpenter.k8s.aws/v1beta1
+apiVersion: karpenter.k8s.aws/v1
 kind: EC2NodeClass
 metadata:
   name: default
@@ -202,8 +206,9 @@ spec:
   amiSelectorTerms:
     - id: "${ARM_AMI_ID}"
     - id: "${AMD_AMI_ID}"
+#   - id: "${GPU_AMI_ID}" # <- GPU Optimized AMD AMI 
+#   - name: "amazon-eks-node-${K8S_VERSION}-*" # <- automatically upgrade when a new AL2 EKS Optimized AMI is released. This is unsafe for production workloads. Validate AMIs in lower environments before deploying them to production.
 EOF
-
 
 ```
 
@@ -217,7 +222,7 @@ EOF
 ```bash
 
 cat <<EOF | envsubst | kubectl apply -f -
-apiVersion: karpenter.sh/v1beta1
+apiVersion: karpenter.sh/v1
 kind: NodePool
 metadata:
   name: default
@@ -238,7 +243,7 @@ spec:
     cpu: 5000
   disruption:
     consolidationPolicy: WhenUnderutilized
-    expireAfter: 720h # 30 * 24h = 720h
+    expireAfter: 720h 
 ---
 apiVersion: karpenter.k8s.aws/v1beta1
 kind: EC2NodeClass
@@ -285,6 +290,28 @@ k apply -f
 kubectl scale --replicas=60 deployment/inflate 
 ```
 
+```bash
+cat <<EOF | envsubst | kubectl apply -f -
+apiVersion: karpenter.k8s.aws/v1
+kind: EC2NodeClass
+metadata:
+  name: default
+spec:
+  amiFamily: AL2 
+  role: "KarpenterNodeRole-${CLUSTER_NAME}"
+  kubelet:
+    maxPods: 30
+  subnetSelectorTerms:
+    - tags:
+        karpenter.sh/discovery: "${CLUSTER_NAME}"
+  securityGroupSelectorTerms:
+    - tags:
+        karpenter.sh/discovery: "${CLUSTER_NAME}"
+  amiSelectorTerms:
+    - id: "${ARM_AMI_ID}"
+    - id: "${AMD_AMI_ID}"
+EOF
+```
 ## Demo 2- Split load spot and on-demand isntances
 
 The manifests located on kr-demo folder.  

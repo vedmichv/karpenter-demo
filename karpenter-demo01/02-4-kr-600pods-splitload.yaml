@@ -24,3 +24,6 @@ spec:
       - maxSkew: 1
         topologyKey: capacity-spread
         whenUnsatisfiable: DoNotSchedule
+        labelSelector:
+          matchLabels:
+            app: inflate
