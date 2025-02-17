@@ -16,11 +16,11 @@ Define variables:
 
 ```bash
 export KARPENTER_NAMESPACE="kube-system"
-export KARPENTER_VERSION="1.1.0"
-export K8S_VERSION="1.30"
+export KARPENTER_VERSION="1.2.1"
+export K8S_VERSION="1.32"
 
 
-export CLUSTER_NAME="karpenter-demo-12-12-01"
+export CLUSTER_NAME="karpenter-demo-25-02-18-01"
 export AWS_PARTITION="aws" 
 export AWS_DEFAULT_REGION="eu-north-1"
 export AWS_ACCOUNT_ID="$(aws sts get-caller-identity --query Account --output text)"
