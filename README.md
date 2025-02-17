@@ -4,9 +4,9 @@
 
 To configure your cloud9 environment use the doc [cloud9-configuration](https://github.com/vedmichv/karpenter-demo/blob/main/cloud9-config.md)
 
-Link to karpenter cluster aa8ae47ca6c7941fa80620d41a37424d-1317174961.eu-north-1.elb.amazonaws.com cluster 1
+Link to karpenter cluster 
 
-http://aa8ae47ca6c7941fa80620d41a37424d-1317174961.eu-north-1.elb.amazonaws.com/
+http://a03aae8cad41d4ee78bceef28d054567-1008847183.eu-north-1.elb.amazonaws.com/
 
 Link to high-load karpenter cluster 
 
