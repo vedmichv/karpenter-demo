@@ -233,12 +233,16 @@ spec:
         - key: karpenter.sh/capacity-type
           operator: In
           values: ["spot"]
+        - key: kubernetes.io/os
+          operator: In
+          values: ["linux"]
+        - key: karpenter.k8s.aws/instance-generation
+          operator: Gt
+          values: ["2"]
       nodeClassRef:
         apiVersion: karpenter.k8s.aws/v1beta1
         kind: EC2NodeClass
         name: default
-      kubelet:
-        maxPods: 200
   limits:
     cpu: 5000
   disruption:
@@ -250,6 +254,8 @@ kind: EC2NodeClass
 metadata:
   name: default
 spec:
+  kubelet:
+    maxPods: 200
   amiFamily: AL2 # Amazon Linux 2
   role: "KarpenterNodeRole-${CLUSTER_NAME}" # replace with your cluster name
   subnetSelectorTerms:
