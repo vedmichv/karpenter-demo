@@ -230,26 +230,30 @@ spec:
   template:
     spec:
       requirements:
-        - key: karpenter.sh/capacity-type
+        - key: kubernetes.io/arch
           operator: In
-          values: ["spot"]
+          values: ["amd64"]
         - key: kubernetes.io/os
           operator: In
           values: ["linux"]
+        - key: karpenter.sh/capacity-type
+          operator: In
+          values: ["spot"]
         - key: karpenter.k8s.aws/instance-generation
           operator: Gt
           values: ["2"]
       nodeClassRef:
-        apiVersion: karpenter.k8s.aws/v1beta1
+        group: karpenter.k8s.aws
         kind: EC2NodeClass
         name: default
+      expireAfter: 720h # 30 * 24h = 720h
   limits:
     cpu: 5000
   disruption:
-    consolidationPolicy: WhenUnderutilized
-    expireAfter: 720h 
+    consolidationPolicy: WhenEmptyOrUnderutilized
+    consolidateAfter: 1s
 ---
-apiVersion: karpenter.k8s.aws/v1beta1
+apiVersion: karpenter.k8s.aws/v1
 kind: EC2NodeClass
 metadata:
   name: default
@@ -268,6 +272,7 @@ spec:
     - id: "${ARM_AMI_ID}"
     - id: "${AMD_AMI_ID}"
 EOF
+
 
 ### Run high load test
 
