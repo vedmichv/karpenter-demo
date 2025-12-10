@@ -1,0 +1,10 @@
+# Private keys
+*.pem
+
+# IDE/Editor directories
+.idea/
+*.swp
+*.swo
+
+# OS files
+.DS_Store

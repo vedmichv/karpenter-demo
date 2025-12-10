@@ -16,21 +16,21 @@ Define variables:
 
 ```bash
 export KARPENTER_NAMESPACE="kube-system"
-export KARPENTER_VERSION="1.2.1"
-export K8S_VERSION="1.32"
+export KARPENTER_VERSION="1.8.1"
+export K8S_VERSION="1.34"
 
 
-export CLUSTER_NAME="karpenter-demo-25-02-18-01"
+export CLUSTER_NAME="karpenter-demo-25-11-21-01"
 export AWS_PARTITION="aws" 
 export AWS_DEFAULT_REGION="eu-north-1"
+
+
 export AWS_ACCOUNT_ID="$(aws sts get-caller-identity --query Account --output text)"
 export TEMPOUT="$(mktemp)"
-export ARM_AMI_ID="$(aws ssm get-parameter --name /aws/service/eks/optimized-ami/${K8S_VERSION}/amazon-linux-2-arm64/recommended/image_id --query Parameter.Value --output text)"
-export AMD_AMI_ID="$(aws ssm get-parameter --name /aws/service/eks/optimized-ami/${K8S_VERSION}/amazon-linux-2/recommended/image_id --query Parameter.Value --output text)"
-export GPU_AMI_ID="$(aws ssm get-parameter --name /aws/service/eks/optimized-ami/${K8S_VERSION}/amazon-linux-2-gpu/recommended/image_id --query Parameter.Value --output text)"
+export ALIAS_VERSION="$(aws ssm get-parameter --name "/aws/service/eks/optimized-ami/${K8S_VERSION}/amazon-linux-2023/x86_64/standard/recommended/image_id" --query Parameter.Value | xargs aws ec2 describe-images --query 'Images[0].Name' --image-ids | sed -r 's/^.*(v[[:digit:]]+).*$/\1/')"
 
-# check that we correctly configure our vars
-echo $KARPENTER_VERSION $CLUSTER_NAME $AWS_DEFAULT_REGION $AWS_ACCOUNT_ID
+echo "${KARPENTER_NAMESPACE}" "${KARPENTER_VERSION}" "${K8S_VERSION}" "${CLUSTER_NAME}" "${AWS_DEFAULT_REGION}" "${AWS_ACCOUNT_ID}" "${TEMPOUT}" "${ALIAS_VERSION}"
+
 ```
 
 We use the bigger size of EC2 instance: `c5.2xlarge` to cover our high load example
@@ -49,6 +49,7 @@ curl -fsSL https://raw.githubusercontent.com/aws/karpenter-provider-aws/v"${KARP
 #### Deploy EKS cluster 
 
 ```bash
+
 eksctl create cluster -f - <<EOF
 ---
 apiVersion: eksctl.io/v1alpha5
@@ -78,7 +79,7 @@ iamIdentityMappings:
 
 managedNodeGroups:
 - instanceType: c5.2xlarge
-  amiFamily: AmazonLinux2
+  amiFamily: AmazonLinux2023
   name: ${CLUSTER_NAME}-ng
   desiredCapacity: 2
   minSize: 1
@@ -87,6 +88,7 @@ managedNodeGroups:
 addons:
 - name: eks-pod-identity-agent
 EOF
+
 
 export CLUSTER_ENDPOINT="$(aws eks describe-cluster --name "${CLUSTER_NAME}" --query "cluster.endpoint" --output text)"
 export KARPENTER_IAM_ROLE_ARN="arn:${AWS_PARTITION}:iam::${AWS_ACCOUNT_ID}:role/${CLUSTER_NAME}-karpenter"
@@ -98,8 +100,6 @@ echo "${CLUSTER_ENDPOINT} ${KARPENTER_IAM_ROLE_ARN}"
 If never use spot on the account run the command
 ```bash
 aws iam create-service-linked-role --aws-service-name spot.amazonaws.com || true
-# If the role has already been successfully created, you will see:
-# An error occurred (InvalidInput) when calling the CreateServiceLinkedRole operation: Service role name AWSServiceRoleForEC2Spot has been taken in this account, please try a different suffix.
 ```
 
 To avoid issue with ECR - logout 
@@ -175,7 +175,7 @@ spec:
           values: ["linux"]
         - key: karpenter.sh/capacity-type
           operator: In
-          values: ["spot"]
+          values: ["spot", "on-demand"]
         - key: karpenter.k8s.aws/instance-generation
           operator: Gt
           values: ["2"]
@@ -185,16 +185,18 @@ spec:
         name: default
       expireAfter: 720h
   limits:
-    cpu: 1000
+    cpu: 5000
   disruption:
     consolidationPolicy: WhenEmptyOrUnderutilized
-    consolidateAfter: 1s
+    consolidateAfter: 10s
 ---
 apiVersion: karpenter.k8s.aws/v1
 kind: EC2NodeClass
 metadata:
   name: default
 spec:
+  kubelet:
+    maxPods: 200
   amiFamily: AL2 # Amazon Linux 2
   role: "KarpenterNodeRole-${CLUSTER_NAME}" # replace with your cluster name
   subnetSelectorTerms:
@@ -206,8 +208,6 @@ spec:
   amiSelectorTerms:
     - id: "${ARM_AMI_ID}"
     - id: "${AMD_AMI_ID}"
-#   - id: "${GPU_AMI_ID}" # <- GPU Optimized AMD AMI 
-#   - name: "amazon-eks-node-${K8S_VERSION}-*" # <- automatically upgrade when a new AL2 EKS Optimized AMI is released. This is unsafe for production workloads. Validate AMIs in lower environments before deploying them to production.
 EOF
 
 ```

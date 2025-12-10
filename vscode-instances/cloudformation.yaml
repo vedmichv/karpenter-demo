@@ -1,0 +1,572 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'Deploy 2 VSCode EC2 instances for Karpenter demo with code-server and development tools'
+
+Parameters:
+  InstanceType:
+    Type: String
+    Default: t3.xlarge
+    AllowedValues:
+      - t3.large
+      - t3.xlarge
+      - t3.2xlarge
+      - c5.xlarge
+      - c5.2xlarge
+      - c5.4xlarge
+    Description: EC2 instance type for VSCode instances
+
+  LatestAmiId:
+    Type: AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>
+    Default: /aws/service/ami-amazon-linux-latest/al2023-ami-kernel-default-x86_64
+    Description: Latest Amazon Linux 2023 AMI
+
+  KeyPairName:
+    Type: AWS::EC2::KeyPair::KeyName
+    Description: EC2 Key Pair for SSH access (create one if you don't have)
+
+  VpcId:
+    Type: AWS::EC2::VPC::Id
+    Description: VPC ID for the instances (select default VPC)
+
+  VSCodePassword:
+    Type: String
+    NoEcho: true
+    MinLength: 8
+    Description: Password for VSCode web interface (min 8 characters)
+
+  VolumeSize:
+    Type: Number
+    Default: 50
+    MinValue: 30
+    MaxValue: 500
+    Description: EBS volume size in GB (default 50GB)
+
+Resources:
+  # IAM Role for EC2 instances with EKS and demo permissions
+  VSCodeInstanceRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub '${AWS::StackName}-VSCodeInstanceRole'
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: ec2.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/AmazonEKSClusterPolicy
+        - arn:aws:iam::aws:policy/AmazonEKSWorkerNodePolicy
+        - arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryReadOnly
+      Policies:
+        - PolicyName: KarpenterDemoPermissions
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              # EKS Full Access
+              - Effect: Allow
+                Action:
+                  - eks:*
+                Resource: '*'
+              # EC2 permissions for Karpenter
+              - Effect: Allow
+                Action:
+                  - ec2:Describe*
+                  - ec2:CreateTags
+                  - ec2:RunInstances
+                  - ec2:TerminateInstances
+                  - ec2:CreateLaunchTemplate
+                  - ec2:DeleteLaunchTemplate
+                  - ec2:CreateFleet
+                Resource: '*'
+              # CloudFormation
+              - Effect: Allow
+                Action:
+                  - cloudformation:*
+                Resource: '*'
+              # IAM for eksctl
+              - Effect: Allow
+                Action:
+                  - iam:GetRole
+                  - iam:PassRole
+                  - iam:CreateRole
+                  - iam:DeleteRole
+                  - iam:AttachRolePolicy
+                  - iam:DetachRolePolicy
+                  - iam:PutRolePolicy
+                  - iam:DeleteRolePolicy
+                  - iam:CreateInstanceProfile
+                  - iam:DeleteInstanceProfile
+                  - iam:AddRoleToInstanceProfile
+                  - iam:RemoveRoleFromInstanceProfile
+                  - iam:CreateOpenIDConnectProvider
+                  - iam:DeleteOpenIDConnectProvider
+                  - iam:TagRole
+                  - iam:TagOpenIDConnectProvider
+                  - iam:TagInstanceProfile
+                  - iam:CreateServiceLinkedRole
+                Resource: '*'
+              # STS
+              - Effect: Allow
+                Action:
+                  - sts:GetCallerIdentity
+                Resource: '*'
+              # SSM for parameter store
+              - Effect: Allow
+                Action:
+                  - ssm:GetParameter
+                  - ssm:GetParameters
+                Resource: '*'
+              # CloudWatch
+              - Effect: Allow
+                Action:
+                  - logs:CreateLogGroup
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                  - logs:DescribeLogStreams
+                Resource: '*'
+
+  VSCodeInstanceProfile:
+    Type: AWS::IAM::InstanceProfile
+    Properties:
+      InstanceProfileName: !Sub '${AWS::StackName}-VSCodeInstanceProfile'
+      Roles:
+        - !Ref VSCodeInstanceRole
+
+  # Security Group - Blocks all inbound traffic by default
+  # Users must manually add ingress rules after deployment
+  VSCodeSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupName: !Sub '${AWS::StackName}-VSCodeSG'
+      GroupDescription: Security group for VSCode instances (default deny all inbound)
+      VpcId: !Ref VpcId
+      # NO SecurityGroupIngress rules - all inbound traffic blocked by default
+      # Users must manually add rules post-deployment using AWS Console or CLI
+      SecurityGroupEgress:
+        - IpProtocol: -1
+          CidrIp: 0.0.0.0/0
+          Description: Allow all outbound traffic (required for instance setup)
+      Tags:
+        - Key: Name
+          Value: !Sub '${AWS::StackName}-VSCodeSG'
+        - Key: Note
+          Value: 'Default deny all inbound - Add rules manually as needed'
+
+  # VSCode Instance 1
+  VSCodeInstance1:
+    Type: AWS::EC2::Instance
+    Properties:
+      InstanceType: !Ref InstanceType
+      ImageId: !Ref LatestAmiId
+      KeyName: !Ref KeyPairName
+      IamInstanceProfile: !Ref VSCodeInstanceProfile
+      NetworkInterfaces:
+        - AssociatePublicIpAddress: true
+          DeviceIndex: 0
+          GroupSet:
+            - !Ref VSCodeSecurityGroup
+      BlockDeviceMappings:
+        - DeviceName: /dev/xvda
+          Ebs:
+            VolumeSize: !Ref VolumeSize
+            VolumeType: gp3
+            DeleteOnTermination: true
+      UserData:
+        Fn::Base64: !Sub |
+          #!/bin/bash
+          set -e
+
+          # Log everything
+          exec > >(tee /var/log/user-data.log)
+          exec 2>&1
+
+          echo "=== Starting VSCode Instance Setup ==="
+
+          # Update system
+          dnf update -y
+
+          # Install basic tools
+          dnf install -y git curl wget unzip tar jq gettext bash-completion moreutils python3 python3-pip
+
+          # Install Docker
+          dnf install -y docker
+          systemctl enable docker
+          systemctl start docker
+          usermod -aG docker ec2-user
+
+          # Install code-server (VSCode in browser)
+          curl -fsSL https://code-server.dev/install.sh | sh
+
+          # Configure code-server
+          mkdir -p /home/ec2-user/.config/code-server
+          cat > /home/ec2-user/.config/code-server/config.yaml <<EOF
+          bind-addr: 0.0.0.0:8080
+          auth: password
+          password: ${VSCodePassword}
+          cert: false
+          EOF
+
+          # Set proper ownership
+          chown -R ec2-user:ec2-user /home/ec2-user/.config
+
+          # Create systemd service for code-server
+          cat > /etc/systemd/system/code-server.service <<EOF
+          [Unit]
+          Description=code-server
+          After=network.target
+
+          [Service]
+          Type=simple
+          User=ec2-user
+          ExecStart=/usr/bin/code-server --config /home/ec2-user/.config/code-server/config.yaml
+          Restart=on-failure
+
+          [Install]
+          WantedBy=multi-user.target
+          EOF
+
+          systemctl daemon-reload
+          systemctl enable code-server
+          systemctl start code-server
+
+          # Install kubectl
+          curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
+          install -o root -g root -m 0755 kubectl /usr/local/bin/kubectl
+          rm kubectl
+
+          # Install eksctl
+          curl --silent --location "https://github.com/weaveworks/eksctl/releases/latest/download/eksctl_$(uname -s)_amd64.tar.gz" | tar xz -C /tmp
+          mv /tmp/eksctl /usr/local/bin
+
+          # Install Helm
+          curl https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash
+
+          # Install AWS CLI v2
+          curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip"
+          unzip awscliv2.zip
+          ./aws/install
+          rm -rf aws awscliv2.zip
+
+          # Install k9s
+          curl -sS https://webinstall.dev/k9s | bash
+
+          # Install krew (kubectl plugin manager)
+          su - ec2-user -c '
+            set -x; cd "$(mktemp -d)" &&
+            OS="$(uname | tr "[:upper:]" "[:lower:]")" &&
+            ARCH="$(uname -m | sed -e "s/x86_64/amd64/" -e "s/\(arm\)\(64\)\?.*/\1\2/" -e "s/aarch64$/arm64/")" &&
+            KREW="krew-${!OS}_${!ARCH}" &&
+            curl -fsSLO "https://github.com/kubernetes-sigs/krew/releases/latest/download/${!KREW}.tar.gz" &&
+            tar zxvf "${!KREW}.tar.gz" &&
+            ./"${!KREW}" install krew
+          '
+
+          # Setup environment for ec2-user
+          su - ec2-user -c '
+            # Bash completion and aliases
+            echo "source <(kubectl completion bash)" >> ~/.bashrc
+            echo "alias k=kubectl" >> ~/.bashrc
+            echo "complete -F __start_kubectl k" >> ~/.bashrc
+            echo "export PATH=\"\${!HOME}/.krew/bin:\${!PATH}\"" >> ~/.bashrc
+
+            # Download kubectl aliases
+            wget https://raw.githubusercontent.com/ahmetb/kubectl-aliases/master/.kubectl_aliases -O ~/.kubectl_aliases
+            echo "[ -f ~/.kubectl_aliases ] && source ~/.kubectl_aliases" >> ~/.bashrc
+
+            # Custom alias for node viewing
+            echo "alias kgn=\"kubectl get nodes -L beta.kubernetes.io/arch -L eks.amazonaws.com/capacityType -L beta.kubernetes.io/instance-type -L eks.amazonaws.com/nodegroup -L topology.kubernetes.io/zone -L karpenter.sh/provisioner-name -L karpenter.sh/capacity-type\"" >> ~/.bashrc
+
+            # AWS environment variables
+            export AWS_REGION=$(curl -s 169.254.169.254/latest/dynamic/instance-identity/document | jq -r ".region")
+            export ACCOUNT_ID=$(aws sts get-caller-identity --output text --query Account)
+
+            echo "export AWS_REGION=\${!AWS_REGION}" >> ~/.bashrc
+            echo "export AWS_DEFAULT_REGION=\${!AWS_REGION}" >> ~/.bashrc
+            echo "export ACCOUNT_ID=\${!ACCOUNT_ID}" >> ~/.bashrc
+
+            # Configure AWS CLI
+            aws configure set default.region ${!AWS_REGION}
+
+            # Install krew plugins
+            source ~/.bashrc
+            kubectl krew install resource-capacity
+
+            # Install fzf
+            git clone --depth 1 https://github.com/junegunn/fzf.git ~/.fzf
+            ~/.fzf/install --all
+
+            # Install kubectx and kubens
+            kubectl krew install ctx ns
+
+            # Install figlet and lolcat for banners
+            pip3 install --user lolcat
+            mkdir -p ~/.local/share/fonts/figlet-fonts/
+            git clone https://github.com/xero/figlet-fonts.git ~/.local/share/fonts/figlet-fonts/
+
+            # Add lolbanner function
+            echo "function lolbanner() {
+              figlet -c -f ~/.local/share/fonts/figlet-fonts/3d.flf \$@ | lolcat
+            }" >> ~/.bashrc
+
+            # Clone demo repository
+            mkdir -p ~/workspace
+            cd ~/workspace
+            git clone https://github.com/vedmich/karpenter-demo.git || true
+          '
+
+          # Install VSCode extensions for Kubernetes
+          su - ec2-user -c '
+            code-server --install-extension ms-kubernetes-tools.vscode-kubernetes-tools
+            code-server --install-extension redhat.vscode-yaml
+            code-server --install-extension hashicorp.terraform
+            code-server --install-extension amazonwebservices.aws-toolkit-vscode
+          '
+
+          echo "=== VSCode Instance Setup Complete ==="
+      Tags:
+        - Key: Name
+          Value: !Sub '${AWS::StackName}-VSCode-1'
+        - Key: Purpose
+          Value: Karpenter-Demo
+
+  VSCodeInstance1EIP:
+    Type: AWS::EC2::EIP
+    Properties:
+      InstanceId: !Ref VSCodeInstance1
+      Tags:
+        - Key: Name
+          Value: !Sub '${AWS::StackName}-VSCode-1-EIP'
+
+  # VSCode Instance 2
+  VSCodeInstance2:
+    Type: AWS::EC2::Instance
+    Properties:
+      InstanceType: !Ref InstanceType
+      ImageId: !Ref LatestAmiId
+      KeyName: !Ref KeyPairName
+      IamInstanceProfile: !Ref VSCodeInstanceProfile
+      NetworkInterfaces:
+        - AssociatePublicIpAddress: true
+          DeviceIndex: 0
+          GroupSet:
+            - !Ref VSCodeSecurityGroup
+      BlockDeviceMappings:
+        - DeviceName: /dev/xvda
+          Ebs:
+            VolumeSize: !Ref VolumeSize
+            VolumeType: gp3
+            DeleteOnTermination: true
+      UserData:
+        Fn::Base64: !Sub |
+          #!/bin/bash
+          set -e
+
+          # Log everything
+          exec > >(tee /var/log/user-data.log)
+          exec 2>&1
+
+          echo "=== Starting VSCode Instance Setup ==="
+
+          # Update system
+          dnf update -y
+
+          # Install basic tools
+          dnf install -y git curl wget unzip tar jq gettext bash-completion moreutils python3 python3-pip
+
+          # Install Docker
+          dnf install -y docker
+          systemctl enable docker
+          systemctl start docker
+          usermod -aG docker ec2-user
+
+          # Install code-server (VSCode in browser)
+          curl -fsSL https://code-server.dev/install.sh | sh
+
+          # Configure code-server
+          mkdir -p /home/ec2-user/.config/code-server
+          cat > /home/ec2-user/.config/code-server/config.yaml <<EOF
+          bind-addr: 0.0.0.0:8080
+          auth: password
+          password: ${VSCodePassword}
+          cert: false
+          EOF
+
+          # Set proper ownership
+          chown -R ec2-user:ec2-user /home/ec2-user/.config
+
+          # Create systemd service for code-server
+          cat > /etc/systemd/system/code-server.service <<EOF
+          [Unit]
+          Description=code-server
+          After=network.target
+
+          [Service]
+          Type=simple
+          User=ec2-user
+          ExecStart=/usr/bin/code-server --config /home/ec2-user/.config/code-server/config.yaml
+          Restart=on-failure
+
+          [Install]
+          WantedBy=multi-user.target
+          EOF
+
+          systemctl daemon-reload
+          systemctl enable code-server
+          systemctl start code-server
+
+          # Install kubectl
+          curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
+          install -o root -g root -m 0755 kubectl /usr/local/bin/kubectl
+          rm kubectl
+
+          # Install eksctl
+          curl --silent --location "https://github.com/weaveworks/eksctl/releases/latest/download/eksctl_$(uname -s)_amd64.tar.gz" | tar xz -C /tmp
+          mv /tmp/eksctl /usr/local/bin
+
+          # Install Helm
+          curl https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash
+
+          # Install AWS CLI v2
+          curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip"
+          unzip awscliv2.zip
+          ./aws/install
+          rm -rf aws awscliv2.zip
+
+          # Install k9s
+          curl -sS https://webinstall.dev/k9s | bash
+
+          # Install krew (kubectl plugin manager)
+          su - ec2-user -c '
+            set -x; cd "$(mktemp -d)" &&
+            OS="$(uname | tr "[:upper:]" "[:lower:]")" &&
+            ARCH="$(uname -m | sed -e "s/x86_64/amd64/" -e "s/\(arm\)\(64\)\?.*/\1\2/" -e "s/aarch64$/arm64/")" &&
+            KREW="krew-${!OS}_${!ARCH}" &&
+            curl -fsSLO "https://github.com/kubernetes-sigs/krew/releases/latest/download/${!KREW}.tar.gz" &&
+            tar zxvf "${!KREW}.tar.gz" &&
+            ./"${!KREW}" install krew
+          '
+
+          # Setup environment for ec2-user
+          su - ec2-user -c '
+            # Bash completion and aliases
+            echo "source <(kubectl completion bash)" >> ~/.bashrc
+            echo "alias k=kubectl" >> ~/.bashrc
+            echo "complete -F __start_kubectl k" >> ~/.bashrc
+            echo "export PATH=\"\${!HOME}/.krew/bin:\${!PATH}\"" >> ~/.bashrc
+
+            # Download kubectl aliases
+            wget https://raw.githubusercontent.com/ahmetb/kubectl-aliases/master/.kubectl_aliases -O ~/.kubectl_aliases
+            echo "[ -f ~/.kubectl_aliases ] && source ~/.kubectl_aliases" >> ~/.bashrc
+
+            # Custom alias for node viewing
+            echo "alias kgn=\"kubectl get nodes -L beta.kubernetes.io/arch -L eks.amazonaws.com/capacityType -L beta.kubernetes.io/instance-type -L eks.amazonaws.com/nodegroup -L topology.kubernetes.io/zone -L karpenter.sh/provisioner-name -L karpenter.sh/capacity-type\"" >> ~/.bashrc
+
+            # AWS environment variables
+            export AWS_REGION=$(curl -s 169.254.169.254/latest/dynamic/instance-identity/document | jq -r ".region")
+            export ACCOUNT_ID=$(aws sts get-caller-identity --output text --query Account)
+
+            echo "export AWS_REGION=\${!AWS_REGION}" >> ~/.bashrc
+            echo "export AWS_DEFAULT_REGION=\${!AWS_REGION}" >> ~/.bashrc
+            echo "export ACCOUNT_ID=\${!ACCOUNT_ID}" >> ~/.bashrc
+
+            # Configure AWS CLI
+            aws configure set default.region ${!AWS_REGION}
+
+            # Install krew plugins
+            source ~/.bashrc
+            kubectl krew install resource-capacity
+
+            # Install fzf
+            git clone --depth 1 https://github.com/junegunn/fzf.git ~/.fzf
+            ~/.fzf/install --all
+
+            # Install kubectx and kubens
+            kubectl krew install ctx ns
+
+            # Install figlet and lolcat for banners
+            pip3 install --user lolcat
+            mkdir -p ~/.local/share/fonts/figlet-fonts/
+            git clone https://github.com/xero/figlet-fonts.git ~/.local/share/fonts/figlet-fonts/
+
+            # Add lolbanner function
+            echo "function lolbanner() {
+              figlet -c -f ~/.local/share/fonts/figlet-fonts/3d.flf \$@ | lolcat
+            }" >> ~/.bashrc
+
+            # Clone demo repository
+            mkdir -p ~/workspace
+            cd ~/workspace
+            git clone https://github.com/vedmich/karpenter-demo.git || true
+          '
+
+          # Install VSCode extensions for Kubernetes
+          su - ec2-user -c '
+            code-server --install-extension ms-kubernetes-tools.vscode-kubernetes-tools
+            code-server --install-extension redhat.vscode-yaml
+            code-server --install-extension hashicorp.terraform
+            code-server --install-extension amazonwebservices.aws-toolkit-vscode
+          '
+
+          echo "=== VSCode Instance Setup Complete ==="
+      Tags:
+        - Key: Name
+          Value: !Sub '${AWS::StackName}-VSCode-2'
+        - Key: Purpose
+          Value: Karpenter-Demo
+
+  VSCodeInstance2EIP:
+    Type: AWS::EC2::EIP
+    Properties:
+      InstanceId: !Ref VSCodeInstance2
+      Tags:
+        - Key: Name
+          Value: !Sub '${AWS::StackName}-VSCode-2-EIP'
+
+Outputs:
+  VSCode1URL:
+    Description: VSCode Instance 1 Web Interface URL
+    Value: !Sub 'http://${VSCodeInstance1EIP}:8080'
+    Export:
+      Name: !Sub '${AWS::StackName}-VSCode1-URL'
+
+  VSCode1SSH:
+    Description: SSH command for VSCode Instance 1
+    Value: !Sub 'ssh -i your-key.pem ec2-user@${VSCodeInstance1EIP}'
+
+  VSCode1PublicIP:
+    Description: Public IP of VSCode Instance 1
+    Value: !Ref VSCodeInstance1EIP
+    Export:
+      Name: !Sub '${AWS::StackName}-VSCode1-IP'
+
+  VSCode2URL:
+    Description: VSCode Instance 2 Web Interface URL
+    Value: !Sub 'http://${VSCodeInstance2EIP}:8080'
+    Export:
+      Name: !Sub '${AWS::StackName}-VSCode2-URL'
+
+  VSCode2SSH:
+    Description: SSH command for VSCode Instance 2
+    Value: !Sub 'ssh -i your-key.pem ec2-user@${VSCodeInstance2EIP}'
+
+  VSCode2PublicIP:
+    Description: Public IP of VSCode Instance 2
+    Value: !Ref VSCodeInstance2EIP
+    Export:
+      Name: !Sub '${AWS::StackName}-VSCode2-IP'
+
+  SecurityGroupId:
+    Description: Security Group ID for VSCode instances
+    Value: !Ref VSCodeSecurityGroup
+    Export:
+      Name: !Sub '${AWS::StackName}-SecurityGroup'
+
+  IAMRoleArn:
+    Description: IAM Role ARN for VSCode instances
+    Value: !GetAtt VSCodeInstanceRole.Arn
+    Export:
+      Name: !Sub '${AWS::StackName}-IAMRole'
+
+  Instructions:
+    Description: Getting Started
+    Value: 'Access VSCode via the URLs above. Use the password you provided during stack creation. SSH is available for advanced usage.'
