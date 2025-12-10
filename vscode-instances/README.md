@@ -29,6 +29,11 @@ The CloudFormation stack creates:
    chmod 400 karpenter-demo-key.pem
    ```
 3. **Appropriate IAM permissions** to create CloudFormation stacks
+4. **Environment variables** (required for cleanup scripts):
+   ```bash
+   export AWS_ACCOUNT_ID="$(aws sts get-caller-identity --query Account --output text)"
+   export AWS_DEFAULT_REGION="eu-north-1"  # or your preferred region
+   ```
 
 ## Quick Start
 
@@ -148,12 +153,19 @@ cd ~/workspace/karpenter-demo
 ### 2. Set Environment Variables
 
 ```bash
+# Required: AWS Account ID (set if not already exported)
+export AWS_ACCOUNT_ID="${AWS_ACCOUNT_ID:-$(aws sts get-caller-identity --query Account --output text)}"
+export AWS_DEFAULT_REGION="${AWS_REGION:-eu-north-1}"
+
+# Karpenter configuration
 export KARPENTER_NAMESPACE="kube-system"
-export KARPENTER_VERSION="1.2.1"
-export K8S_VERSION="1.32"
+export KARPENTER_VERSION="1.8.2"
+export K8S_VERSION="1.34"
 export CLUSTER_NAME="karpenter-demo-$(date +%y-%m-%d-%H)"
-export AWS_DEFAULT_REGION="$AWS_REGION"
-export AWS_ACCOUNT_ID="$ACCOUNT_ID"
+
+# Verify variables are set
+echo "AWS_ACCOUNT_ID: ${AWS_ACCOUNT_ID}"
+echo "AWS_DEFAULT_REGION: ${AWS_DEFAULT_REGION}"
 ```
 
 ### 3. Create EKS Cluster

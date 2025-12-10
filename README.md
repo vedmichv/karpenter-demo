@@ -16,7 +16,7 @@ Define variables:
 
 ```bash
 export KARPENTER_NAMESPACE="kube-system"
-export KARPENTER_VERSION="1.8.1"
+export KARPENTER_VERSION="1.8.2"
 export K8S_VERSION="1.34"
 
 
