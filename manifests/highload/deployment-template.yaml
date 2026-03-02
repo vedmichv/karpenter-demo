@@ -1,0 +1,27 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: "${NAME}"
+spec:
+  replicas: ${BATCH}
+  selector:
+    matchLabels:
+      app: "${NAME}"
+  template:
+    metadata:
+      labels:
+        app: "${NAME}"
+    spec:
+      terminationGracePeriodSeconds: 0
+      containers:
+        - image: public.ecr.aws/eks-distro/kubernetes/pause:3.7
+          name: "${NAME}"
+          resources:
+            requests:
+              cpu: "${CPU}"
+              memory: "${MEM}"
+      tolerations:
+        - key: karpenter
+          operator: Exists
+      nodeSelector:
+        karpenter.sh/capacity-type: spot

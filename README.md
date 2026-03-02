@@ -1,381 +1,155 @@
-# karpenter-demo
+# Karpenter Demo
 
-## Process of installation EKS cluster with Karpenter
+Automated demo environment for AWS Karpenter autoscaler on EKS. Creates two clusters -- one for basic demos, one for high-load testing -- with full monitoring.
 
-To configure your cloud9 environment use the doc [cloud9-configuration](https://github.com/vedmichv/karpenter-demo/blob/main/cloud9-config.md)
+## Prerequisites
 
-Link to karpenter cluster 
+- AWS CLI v2 configured with appropriate permissions
+- kubectl, eksctl, helm installed
+- macOS or Linux
 
-http://a03aae8cad41d4ee78bceef28d054567-1008847183.eu-north-1.elb.amazonaws.com/
+## Quick Start
 
-Link to high-load karpenter cluster 
-
-The best way to install cluster use the official documentation https://karpenter.sh/v0.27.2/getting-started/getting-started-with-karpenter/
-
-Define variables:
+### Option 1: Claude Code (interactive)
 
 ```bash
-export KARPENTER_NAMESPACE="kube-system"
-export KARPENTER_VERSION="1.8.2"
-export K8S_VERSION="1.34"
-
-
-export CLUSTER_NAME="karpenter-demo-25-11-21-01"
-export AWS_PARTITION="aws" 
-export AWS_DEFAULT_REGION="eu-north-1"
-
-
-export AWS_ACCOUNT_ID="$(aws sts get-caller-identity --query Account --output text)"
-export TEMPOUT="$(mktemp)"
-export ALIAS_VERSION="$(aws ssm get-parameter --name "/aws/service/eks/optimized-ami/${K8S_VERSION}/amazon-linux-2023/x86_64/standard/recommended/image_id" --query Parameter.Value | xargs aws ec2 describe-images --query 'Images[0].Name' --image-ids | sed -r 's/^.*(v[[:digit:]]+).*$/\1/')"
-
-echo "${KARPENTER_NAMESPACE}" "${KARPENTER_VERSION}" "${K8S_VERSION}" "${CLUSTER_NAME}" "${AWS_DEFAULT_REGION}" "${AWS_ACCOUNT_ID}" "${TEMPOUT}" "${ALIAS_VERSION}"
-
+/setup-demo
 ```
 
-We use the bigger size of EC2 instance: `c5.2xlarge` to cover our high load example
+Claude will check the latest Karpenter version, create both clusters, install Karpenter, deploy monitoring, and set up kubectl contexts.
 
-#### Use CloudFormation to set up the infrastructure needed by the EKS cluster.
+### Option 2: Standalone script
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/aws/karpenter-provider-aws/v"${KARPENTER_VERSION}"/website/content/en/preview/getting-started/getting-started-with-karpenter/cloudformation.yaml  > "${TEMPOUT}" \
-&& aws cloudformation deploy \
-  --stack-name "Karpenter-${CLUSTER_NAME}" \
-  --template-file "${TEMPOUT}" \
-  --capabilities CAPABILITY_NAMED_IAM \
-  --parameter-overrides "ClusterName=${CLUSTER_NAME}"
+./scripts/setup-all.sh              # Auto-detect latest Karpenter version
+./scripts/setup-all.sh 1.8.2        # Use specific version
 ```
 
-#### Deploy EKS cluster 
+## What Gets Created
+
+| Component | Basic Cluster (kd-basic-*) | Highload Cluster (kd-hl-*) |
+|-----------|---------------------------|---------------------------|
+| EKS version | 1.34 | 1.34 |
+| Managed NodeGroup | c5.2xlarge (2-10 nodes) | c5.2xlarge (2-10 nodes) |
+| Karpenter NodePool | spot + on-demand | spot only |
+| maxPods | default | 200 (dense packing) |
+| CPU limit | 5000 | 5000 |
+| Monitoring | metrics-server + kube-ops-view | metrics-server + kube-ops-view |
+
+## Switching Between Clusters
 
 ```bash
-
-eksctl create cluster -f - <<EOF
----
-apiVersion: eksctl.io/v1alpha5
-kind: ClusterConfig
-metadata:
-  name: ${CLUSTER_NAME}
-  region: ${AWS_DEFAULT_REGION}
-  version: "${K8S_VERSION}"
-  tags:
-    karpenter.sh/discovery: ${CLUSTER_NAME}
-
-iam:
-  withOIDC: true
-  podIdentityAssociations:
-  - namespace: "${KARPENTER_NAMESPACE}"
-    serviceAccountName: karpenter
-    roleName: ${CLUSTER_NAME}-karpenter
-    permissionPolicyARNs:
-    - arn:${AWS_PARTITION}:iam::${AWS_ACCOUNT_ID}:policy/KarpenterControllerPolicy-${CLUSTER_NAME}
-
-iamIdentityMappings:
-- arn: "arn:${AWS_PARTITION}:iam::${AWS_ACCOUNT_ID}:role/KarpenterNodeRole-${CLUSTER_NAME}"
-  username: system:node:{{EC2PrivateDNSName}}
-  groups:
-  - system:bootstrappers
-  - system:nodes
-
-managedNodeGroups:
-- instanceType: c5.2xlarge
-  amiFamily: AmazonLinux2023
-  name: ${CLUSTER_NAME}-ng
-  desiredCapacity: 2
-  minSize: 1
-  maxSize: 10
-
-addons:
-- name: eks-pod-identity-agent
-EOF
-
-
-export CLUSTER_ENDPOINT="$(aws eks describe-cluster --name "${CLUSTER_NAME}" --query "cluster.endpoint" --output text)"
-export KARPENTER_IAM_ROLE_ARN="arn:${AWS_PARTITION}:iam::${AWS_ACCOUNT_ID}:role/${CLUSTER_NAME}-karpenter"
-
-echo "${CLUSTER_ENDPOINT} ${KARPENTER_IAM_ROLE_ARN}"
-
+kubectl config use-context kd-basic   # Basic cluster
+kubectl config use-context kd-hl      # Highload cluster
 ```
 
-If never use spot on the account run the command
+Or use separate terminal sessions:
 ```bash
-aws iam create-service-linked-role --aws-service-name spot.amazonaws.com || true
+# Terminal 1
+export KUBECONFIG=~/.kube/config-basic
+
+# Terminal 2
+export KUBECONFIG=~/.kube/config-highload
 ```
 
-To avoid issue with ECR - logout 
+## Demo Scenarios
+
+### Demo 1: Karpenter Basics
+
 ```bash
-helm registry logout public.ecr.aws
+kubectl config use-context kd-basic
+
+# Deploy 10 pods -- watch Karpenter provision nodes
+kubectl apply -f manifests/basic/inflate-10pods.yaml
+
+# Scale to 60 -- more nodes added
+kubectl scale --replicas=60 deployment/inflate
+
+# Scale to 0 -- watch consolidation
+kubectl scale --replicas=0 deployment/inflate
 ```
 
-### Kube-ops-view is required for the demo
-
-#### Metric server:
+### Demo 2: Split Spot / On-Demand
 
 ```bash
-kubectl apply -f https://github.com/kubernetes-sigs/metrics-server/releases/latest/download/components.yaml
-kubectl get deployment metrics-server -n kube-system
+kubectl config use-context kd-basic
+
+# Replace simple NodePool with split configuration
+kubectl delete nodepools default
+kubectl apply -f manifests/basic/nodepool-ondemand.yaml
+kubectl apply -f manifests/basic/nodepool-spot.yaml
+
+# Deploy 600 pods with topology spreading (50/50 spot/on-demand)
+kubectl apply -f manifests/basic/inflate-600pods-split.yaml
 ```
 
-#### Kube-Ops-View
+### Demo 3: High Load (3000+ pods)
 
 ```bash
-cd ~/environment/karpenter-demo/kube-ops-view/
-kubectl apply -k deploy 
-kubectl get pod,svc,sa
-cd ~/environment
+kubectl config use-context kd-hl
+
+# Create 3000 pods in batches of 500 with random resource requests
+cd high-load
+./create-workload.sh 3000 500
+
+# Clean up
+./delete-workload.sh
 ```
 
+## Monitoring
 
-## Install karpenter Helm Chart
-
-Dry-run chart - check that HELM chart is deployable
-
+kube-ops-view is deployed on both clusters with a LoadBalancer:
 ```bash
-helm install --debug --dry-run karpenter oci://public.ecr.aws/karpenter/karpenter --version "${KARPENTER_VERSION}" --namespace "${KARPENTER_NAMESPACE}" --create-namespace \
-  --set "settings.clusterName=${CLUSTER_NAME}" \
-  --set "settings.interruptionQueue=${CLUSTER_NAME}" \
-  --set controller.resources.requests.cpu=2 \
-  --set controller.resources.requests.memory=2Gi \
-  --set controller.resources.limits.cpu=4 \
-  --set controller.resources.limits.memory=4Gi
+kubectl get svc kube-ops-view -o jsonpath='{.status.loadBalancer.ingress[0].hostname}'
 ```
 
-
-Deploy Karpenter
-
+Other useful commands:
 ```bash
-helm upgrade --install karpenter oci://public.ecr.aws/karpenter/karpenter --version "${KARPENTER_VERSION}" --namespace "${KARPENTER_NAMESPACE}" --create-namespace \
-  --set "settings.clusterName=${CLUSTER_NAME}" \
-  --set "settings.interruptionQueue=${CLUSTER_NAME}" \
-  --set controller.resources.requests.cpu=2 \
-  --set controller.resources.requests.memory=2Gi \
-  --set controller.resources.limits.cpu=4 \
-  --set controller.resources.limits.memory=4Gi \
-  --wait
-```
-
-### NodePool default with spot instances and consolidation is enabled
-
-
-```bash
-cat <<EOF | envsubst | kubectl apply -f -
-apiVersion: karpenter.sh/v1
-kind: NodePool
-metadata:
-  name: default
-spec:
-  template:
-    spec:
-      requirements:
-        - key: kubernetes.io/arch
-          operator: In
-          values: ["amd64"]
-        - key: kubernetes.io/os
-          operator: In
-          values: ["linux"]
-        - key: karpenter.sh/capacity-type
-          operator: In
-          values: ["spot", "on-demand"]
-        - key: karpenter.k8s.aws/instance-generation
-          operator: Gt
-          values: ["2"]
-      nodeClassRef:
-        group: karpenter.k8s.aws
-        kind: EC2NodeClass
-        name: default
-      expireAfter: 720h
-  limits:
-    cpu: 5000
-  disruption:
-    consolidationPolicy: WhenEmptyOrUnderutilized
-    consolidateAfter: 10s
----
-apiVersion: karpenter.k8s.aws/v1
-kind: EC2NodeClass
-metadata:
-  name: default
-spec:
-  kubelet:
-    maxPods: 200
-  amiFamily: AL2 # Amazon Linux 2
-  role: "KarpenterNodeRole-${CLUSTER_NAME}" # replace with your cluster name
-  subnetSelectorTerms:
-    - tags:
-        karpenter.sh/discovery: "${CLUSTER_NAME}" # replace with your cluster name
-  securityGroupSelectorTerms:
-    - tags:
-        karpenter.sh/discovery: "${CLUSTER_NAME}" # replace with your cluster name
-  amiSelectorTerms:
-    - id: "${ARM_AMI_ID}"
-    - id: "${AMD_AMI_ID}"
-EOF
-
-```
-
-
-
-### High load 
-- restriction not more than 200 pods per node 
-- consolidation is enabled
-- only spot instances
-
-```bash
-
-cat <<EOF | envsubst | kubectl apply -f -
-apiVersion: karpenter.sh/v1
-kind: NodePool
-metadata:
-  name: default
-spec:
-  template:
-    spec:
-      requirements:
-        - key: kubernetes.io/arch
-          operator: In
-          values: ["amd64"]
-        - key: kubernetes.io/os
-          operator: In
-          values: ["linux"]
-        - key: karpenter.sh/capacity-type
-          operator: In
-          values: ["spot"]
-        - key: karpenter.k8s.aws/instance-generation
-          operator: Gt
-          values: ["2"]
-      nodeClassRef:
-        group: karpenter.k8s.aws
-        kind: EC2NodeClass
-        name: default
-      expireAfter: 720h # 30 * 24h = 720h
-  limits:
-    cpu: 5000
-  disruption:
-    consolidationPolicy: WhenEmptyOrUnderutilized
-    consolidateAfter: 1s
----
-apiVersion: karpenter.k8s.aws/v1
-kind: EC2NodeClass
-metadata:
-  name: default
-spec:
-  kubelet:
-    maxPods: 200
-  amiFamily: AL2 # Amazon Linux 2
-  role: "KarpenterNodeRole-${CLUSTER_NAME}" # replace with your cluster name
-  subnetSelectorTerms:
-    - tags:
-        karpenter.sh/discovery: "${CLUSTER_NAME}" # replace with your cluster name
-  securityGroupSelectorTerms:
-    - tags:
-        karpenter.sh/discovery: "${CLUSTER_NAME}" # replace with your cluster name
-  amiSelectorTerms:
-    - id: "${ARM_AMI_ID}"
-    - id: "${AMD_AMI_ID}"
-EOF
-
-
-### Run high load test
-
-It will create 3000 pods with batch 500 pods per deployment. Resource request randomly selected from array: 
-`CPU_OPTIONS=(250m 500m 750m 1 2)`
-`MEM_OPTIONS=(128M 256M 512M 750M 1G)`
-
-
-```bash
-./create.workload.sh 3000 500
-```
-
-## Demo 1 - show Karpenter in action first 10 pod 
-Deploy inflate deployment 
-10 pod 
-```bash
-cd 
-k apply -f 
-```
-
-
-60 pod - Demostrate consolidation 
-
-```bash
-# scale deployment
-kubectl scale --replicas=60 deployment/inflate 
-```
-
-```bash
-cat <<EOF | envsubst | kubectl apply -f -
-apiVersion: karpenter.k8s.aws/v1
-kind: EC2NodeClass
-metadata:
-  name: default
-spec:
-  amiFamily: AL2 
-  role: "KarpenterNodeRole-${CLUSTER_NAME}"
-  kubelet:
-    maxPods: 30
-  subnetSelectorTerms:
-    - tags:
-        karpenter.sh/discovery: "${CLUSTER_NAME}"
-  securityGroupSelectorTerms:
-    - tags:
-        karpenter.sh/discovery: "${CLUSTER_NAME}"
-  amiSelectorTerms:
-    - id: "${ARM_AMI_ID}"
-    - id: "${AMD_AMI_ID}"
-EOF
-```
-## Demo 2- Split load spot and on-demand isntances
-
-The manifests located on kr-demo folder.  
-
 watch 'kubectl get nodes -L node.kubernetes.io/instance-type,kubernetes.io/arch,karpenter.sh/capacity-type'
-
-### Usefull commands to check status of deployment
-
-```bash
-watch 'kubectl get deployment'
-watch 'kubectl get nodes -L node.kubernetes.io/instance-type,kubernetes.io/arch,karpenter.sh/capacity-type'
-watch 'kubectl get deployments.apps | grep -v NAME | wc -l'
-```
-
-
-Get logs from Karpenter:
-
-```bash
-kubectl logs -f -n "${KARPENTER_NAMESPACE}" -l app.kubernetes.io/name=karpenter -c controller
-```
-
-
-Scale and other usefull commands 
-
-```bash
-# scale nodegroup
-eksctl scale nodegroup --cluster=${CLUSTER_NAME} --nodes=2 --name=${CLUSTER_NAME}-ng
-# to select the right instance
-ec2-instance-selector -o one-line --service eks
-ec2-instance-selector --memory 4 --vcpus 2 --cpu-architecture x86_64 -r us-east-1 -o table
-# External plugin for kubernetes to show what the resources currently is used by cluster
+kubectl logs -f -n kube-system -l app.kubernetes.io/name=karpenter -c controller
 kubectl resource-capacity --sort cpu.request
-kubectl get no -L node.kubernetes.io/instance-type,kubernetes.io/arch,karpenter.sh/capacity-type 
-
 ```
 
+## Teardown
 
-## Delete all resources
-
-### Delete internal resources
+### With Claude Code
 ```bash
-kubectl delete  -f https://github.com/kubernetes-sigs/metrics-server/releases/latest/download/components.yaml
-cd ~/environment/karpenter-demo/kube-ops-view/
-kubectl delete -k deploy
+/teardown-demo
 ```
 
-
+### Standalone
 ```bash
-helm uninstall karpenter --namespace "${KARPENTER_NAMESPACE}"
-aws cloudformation delete-stack --stack-name "Karpenter-${CLUSTER_NAME}"
-aws ec2 describe-launch-templates --filters "Name=tag:karpenter.k8s.aws/cluster,Values=${CLUSTER_NAME}" |
-    jq -r ".LaunchTemplates[].LaunchTemplateName" |
-    xargs -I{} aws ec2 delete-launch-template --launch-template-name {}
-eksctl delete cluster --name "${CLUSTER_NAME}"
+./scripts/teardown.sh kd-basic-26-03-02 kd-hl-26-03-02
+```
 
+## Configuration
+
+All defaults in `config.env`:
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| AWS_DEFAULT_REGION | eu-north-1 | AWS region |
+| K8S_VERSION | 1.34 | EKS Kubernetes version |
+| MNG_INSTANCE_TYPE | c5.2xlarge | Managed nodegroup instance type |
+| KARPENTER_VERSION_FALLBACK | 1.8.2 | Fallback if version detection fails |
+
+Override any variable before running:
+```bash
+export K8S_VERSION="1.35"
+./scripts/setup-all.sh
+```
+
+## Directory Structure
+
+```
+karpenter-demo/
+├── scripts/          # Modular automation scripts
+├── manifests/
+│   ├── basic/        # NodePools, EC2NodeClass, inflate deployments
+│   ├── highload/     # Spot NodePool, dense packing config
+│   └── monitoring/   # kube-ops-view (kustomize)
+├── high-load/        # Batch workload generation scripts
+├── .claude/commands/ # Claude Code custom commands
+├── config.env        # Default configuration
+└── README.md
 ```
