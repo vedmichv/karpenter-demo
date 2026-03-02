@@ -75,6 +75,10 @@ managedNodeGroups:
   desiredCapacity: ${MNG_DESIRED_SIZE}
   minSize: ${MNG_MIN_SIZE}
   maxSize: ${MNG_MAX_SIZE}
+  taints:
+  - key: CriticalAddonsOnly
+    value: "true"
+    effect: NoSchedule
 
 addons:
 - name: eks-pod-identity-agent
