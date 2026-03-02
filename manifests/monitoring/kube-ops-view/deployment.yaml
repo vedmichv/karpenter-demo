@@ -18,6 +18,9 @@ spec:
         component: frontend
     spec:
       serviceAccountName: kube-ops-view
+      tolerations:
+      - key: CriticalAddonsOnly
+        operator: Exists
       containers:
       - name: service
         image: hjacobs/kube-ops-view:20.4.0

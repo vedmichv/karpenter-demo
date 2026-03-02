@@ -17,6 +17,9 @@ spec:
         application: kube-ops-view
         component: redis
     spec:
+      tolerations:
+      - key: CriticalAddonsOnly
+        operator: Exists
       containers:
       - name: redis
         image: redis:5-alpine
