@@ -4,10 +4,14 @@ source "$(dirname "$0")/lib.sh"
 
 log_step "Deploying monitoring stack"
 
-# Step 1: metrics-server
-log_info "Installing metrics-server..."
-kubectl apply -f https://github.com/kubernetes-sigs/metrics-server/releases/latest/download/components.yaml
-log_ok "metrics-server deployed"
+# Step 1: metrics-server (skip if already installed as EKS addon)
+if kubectl get deployment metrics-server -n kube-system &>/dev/null; then
+  log_ok "metrics-server already running, skipping"
+else
+  log_info "Installing metrics-server..."
+  kubectl apply -f https://github.com/kubernetes-sigs/metrics-server/releases/latest/download/components.yaml
+  log_ok "metrics-server deployed"
+fi
 
 # Step 2: kube-ops-view
 log_info "Installing kube-ops-view..."
