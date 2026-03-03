@@ -15,9 +15,12 @@ spec:
         - key: karpenter.sh/capacity-type
           operator: In
           values: ["spot"]
-        - key: karpenter.k8s.aws/instance-generation
-          operator: Gt
-          values: ["2"]
+        - key: karpenter.k8s.aws/instance-family
+          operator: In
+          values: ["c5", "c6i", "c7i", "m5", "m6i", "m7i", "r5", "r6i", "r7i"]
+        - key: karpenter.k8s.aws/instance-size
+          operator: NotIn
+          values: ["metal", "metal-24xl", "metal-48xl"]
       nodeClassRef:
         group: karpenter.k8s.aws
         kind: EC2NodeClass

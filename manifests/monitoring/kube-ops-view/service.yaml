@@ -11,7 +11,10 @@ spec:
     component: frontend
   type: LoadBalancer
   loadBalancerSourceRanges:
+  - 15.248.0.0/16
   - 195.72.95.0/24
+  - 95.90.195.0/24
+  - 95.90.192.0/24
   ports:
   - port: 80
     protocol: TCP

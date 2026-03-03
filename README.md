@@ -6,6 +6,7 @@ Automated demo environment for AWS Karpenter autoscaler on EKS. Creates two clus
 
 - AWS CLI v2 configured with appropriate permissions
 - kubectl, eksctl, helm installed
+- [eks-node-viewer](https://github.com/awslabs/eks-node-viewer) -- live terminal dashboard for node utilization and costs (`brew install eks-node-viewer`)
 - macOS or Linux
 
 ## Quick Start
@@ -49,7 +50,7 @@ Open two terminal windows (or tabs). In each one, set up a separate kubeconfig s
 
 **Terminal 1 (Basic cluster):**
 ```bash
-aws eks update-kubeconfig --name kd-basic-YY-MM-DD --region eu-north-1 --kubeconfig ~/.kube/config-basic
+aws eks update-kubeconfig --name kd-basic-26-03-02 --region eu-north-1 --kubeconfig ~/.kube/config-basic
 export KUBECONFIG=~/.kube/config-basic
 
 # Verify connection
@@ -58,14 +59,12 @@ kubectl get nodes
 
 **Terminal 2 (Highload cluster):**
 ```bash
-aws eks update-kubeconfig --name kd-hl-YY-MM-DD --region eu-north-1 --kubeconfig ~/.kube/config-highload
+aws eks update-kubeconfig --name kd-hl-26-03-02 --region eu-north-1 --kubeconfig ~/.kube/config-highload
 export KUBECONFIG=~/.kube/config-highload
 
 # Verify connection
 kubectl get nodes
 ```
-
-> Replace `YY-MM-DD` with your cluster date (e.g., `26-03-02`).
 
 Alternatively, use a single terminal and switch contexts:
 ```bash
@@ -88,114 +87,43 @@ echo "http://$(kubectl get svc kube-ops-view -o jsonpath='{.status.loadBalancer.
 
 Open both URLs in a browser. You'll see a live visual representation of nodes and pods.
 
-### Step 2: Start watching nodes (keep running)
+### Step 2: Start monitoring panes (keep running)
 
-In each terminal, start a watch in a split pane or separate tab:
+For each terminal, open 3 extra panes/tabs and keep them running throughout the demos:
 
+**Pane 1 -- Node watch:**
 ```bash
 watch 'kubectl get nodes -L node.kubernetes.io/instance-type,kubernetes.io/arch,karpenter.sh/capacity-type'
 ```
 
-You'll see the managed nodes (c5.2xlarge, no capacity-type label). As Karpenter provisions nodes, new rows will appear with `spot` or `on-demand` labels.
-
----
-
-### Demo 1: Karpenter Basics (Terminal 1 -- kd-basic)
-
-Shows: Karpenter provisioning nodes, scaling, and consolidation.
-
-**a) Deploy 10 pods:**
+**Pane 2 -- Karpenter logs (filtered: only node create/delete events):**
 ```bash
-kubectl apply -f manifests/basic/inflate-10pods.yaml
-```
-Watch kube-ops-view and the node watch -- Karpenter will provision a new node for these pods (managed nodes are tainted, so pods can't land there).
-
-**b) Scale to 60 pods:**
-```bash
-kubectl scale --replicas=60 deployment/inflate
-```
-More nodes will appear as Karpenter provisions capacity.
-
-**c) Scale down to 0 -- observe consolidation:**
-```bash
-kubectl scale --replicas=0 deployment/inflate
-```
-Watch Karpenter remove the now-empty nodes (consolidateAfter: 1s for fast demo).
-
-**d) Clean up before next demo:**
-```bash
-kubectl delete deployment inflate
+kubectl logs -f -n kube-system -l app.kubernetes.io/name=karpenter -c controller \
+  | grep -E 'created nodeclaim|launched nodeclaim|registered nodeclaim|initialized nodeclaim|disrupting node|deleted node|deleted nodeclaim'
 ```
 
----
-
-### Demo 2: Split Spot / On-Demand (Terminal 1 -- kd-basic)
-
-Shows: Two separate NodePools with 50/50 topology spreading across spot and on-demand.
-
-**a) Remove the simple NodePool:**
-```bash
-kubectl delete nodepools default
-```
-
-**b) Apply two separate NodePools (on-demand + spot):**
-```bash
-kubectl apply -f manifests/basic/nodepool-ondemand.yaml
-kubectl apply -f manifests/basic/nodepool-spot.yaml
-```
-
-**c) Deploy 600 pods with topology spreading:**
-```bash
-kubectl apply -f manifests/basic/inflate-600pods-split.yaml
-```
-
-Watch the node list -- you'll see both `spot` and `on-demand` nodes appearing. The `topologySpreadConstraints` ensure roughly 50/50 distribution.
-
-**d) Check the split:**
-```bash
-kubectl get nodes -L karpenter.sh/capacity-type --no-headers | awk '{print $6}' | sort | uniq -c
-```
-
-**e) Clean up:**
-```bash
-kubectl delete deployment inflate
-kubectl delete nodepools on-demand spot
-```
-
----
-
-### Demo 3: High Load -- 3000 pods (Terminal 2 -- kd-hl)
-
-Shows: Karpenter handling massive scale with spot instances and maxPods:200 per node.
-
-**a) Launch 3000 pods in batches of 500:**
-```bash
-cd high-load
-./create-workload.sh 3000 500
-```
-
-Each batch creates a Deployment with random CPU (250m-2) and memory (128M-1G) requests using `pause` containers. Watch nodes appear rapidly in kube-ops-view.
-
-**b) Monitor progress:**
-```bash
-# How many deployments created
-kubectl get deployments --no-headers | wc -l
-
-# How many pods running vs pending
-kubectl get pods --no-headers | awk '{print $3}' | sort | uniq -c
-```
-
-**c) Watch Karpenter logs (optional, in another pane):**
+To see full unfiltered logs instead:
 ```bash
 kubectl logs -f -n kube-system -l app.kubernetes.io/name=karpenter -c controller
 ```
 
-**d) Clean up:**
+**Pane 3 -- eks-node-viewer (live utilization, Karpenter nodes only):**
 ```bash
-./delete-workload.sh
-cd ..
+eks-node-viewer --node-selector karpenter.sh/nodepool --resources cpu,memory
 ```
-Watch Karpenter consolidate and remove all the now-empty nodes.
+
+You'll see the managed nodes in the node watch (c5.2xlarge, no capacity-type label). As Karpenter provisions nodes, new rows will appear with `spot` or `on-demand` labels. Karpenter logs will show every decision in real time. eks-node-viewer will show CPU/memory utilization filling up.
+
+---
+
+### Demo Guides
+
+Detailed step-by-step guides with Karpenter log examples and what to tell the audience:
+
+| Demo | Cluster | Guide |
+|------|---------|-------|
+| Karpenter Basics (10 pods, scale to 60, consolidation) + Split Spot/On-Demand 50/50 | kd-basic (Terminal 1) | [docs/demo-basic.md](docs/demo-basic.md) |
+| High Load -- 3000 pods with spot and maxPods:200 | kd-hl (Terminal 2) | [docs/demo-highload.md](docs/demo-highload.md) |
 
 ---
 
@@ -242,7 +170,7 @@ kubectl apply -k manifests/monitoring/kube-ops-view
 
 ### Standalone
 ```bash
-./scripts/teardown.sh kd-basic-YY-MM-DD kd-hl-YY-MM-DD
+./scripts/teardown.sh kd-basic-26-03-02 kd-hl-26-03-02
 ```
 
 ## Configuration
