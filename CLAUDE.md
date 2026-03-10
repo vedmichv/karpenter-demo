@@ -17,8 +17,8 @@ Karpenter demo repository for AWS EKS. Automates creation of two EKS clusters (b
 ### Without Claude Code
 ```bash
 ./scripts/setup-all.sh           # Full automated setup
-./scripts/setup-all.sh 1.8.2     # With specific Karpenter version
-./scripts/teardown.sh kd-basic-26-03-02 kd-hl-26-03-02
+./scripts/setup-all.sh 1.9.0     # With specific Karpenter version
+./scripts/teardown.sh k-basic-26-03-10 k-hl-26-03-10
 ```
 
 ## Architecture
@@ -27,8 +27,8 @@ Karpenter demo repository for AWS EKS. Automates creation of two EKS clusters (b
 
 | Cluster | Name Pattern | Purpose | Karpenter Config |
 |---------|-------------|---------|-----------------|
-| Basic | kd-basic-YY-MM-DD | Demo basics, consolidation, split spot/on-demand | Simple NodePool (spot+on-demand), maxPods default |
-| Highload | kd-hl-YY-MM-DD | 3000+ pod load testing | Spot-only NodePool, maxPods: 200 |
+| Basic | k-basic-YY-MM-DD | Demo basics, consolidation, split spot/on-demand | Simple NodePool (spot+on-demand), maxPods default |
+| Highload | k-hl-YY-MM-DD | 3000+ pod load testing | Spot-only NodePool, maxPods: 200 |
 
 ### Directory Structure
 
@@ -39,7 +39,7 @@ Karpenter demo repository for AWS EKS. Automates creation of two EKS clusters (b
   - `create-cluster.sh` - Create one EKS cluster (CloudFormation + eksctl)
   - `install-karpenter.sh` - Install Karpenter + apply manifests
   - `deploy-monitoring.sh` - Deploy metrics-server + kube-ops-view
-  - `setup-contexts.sh` - Rename kubectl contexts to kd-basic/kd-hl
+  - `setup-contexts.sh` - Rename kubectl contexts to k-basic/k-hl
   - `setup-all.sh` - Master orchestrator (standalone, no Claude needed)
   - `teardown.sh` - Delete one or both clusters with full cleanup
 
@@ -66,19 +66,19 @@ export K8S_VERSION="1.35"   # Override K8s version
 ./scripts/setup-all.sh       # Will use 1.35
 ```
 
-Key defaults: region=eu-north-1, K8s=1.34, instance=c5.2xlarge, Karpenter fallback=1.8.2
+Key defaults: region=eu-north-1, K8s=1.35, instance=c5.2xlarge, Karpenter fallback=1.9.0
 
 ## Demo Flows
 
-### Demo 1: Basic Karpenter (kd-basic cluster)
+### Demo 1: Basic Karpenter (k-basic cluster)
 ```bash
-kubectl config use-context kd-basic
+kubectl config use-context k-basic
 kubectl apply -f manifests/basic/inflate-10pods.yaml    # 10 pods -> Karpenter provisions nodes
 kubectl scale --replicas=60 deployment/inflate           # Scale up -> more nodes
 kubectl scale --replicas=0 deployment/inflate            # Scale down -> consolidation
 ```
 
-### Demo 2: Split Spot/On-Demand (kd-basic cluster)
+### Demo 2: Split Spot/On-Demand (k-basic cluster)
 ```bash
 kubectl delete nodepools default                         # Remove simple NodePool
 kubectl apply -f manifests/basic/nodepool-ondemand.yaml  # On-demand NodePool
@@ -86,9 +86,9 @@ kubectl apply -f manifests/basic/nodepool-spot.yaml      # Spot NodePool
 kubectl apply -f manifests/basic/inflate-600pods-split.yaml  # 600 pods with topology spreading
 ```
 
-### Demo 3: High Load (kd-hl cluster)
+### Demo 3: High Load (k-hl cluster)
 ```bash
-kubectl config use-context kd-hl
+kubectl config use-context k-hl
 cd high-load && ./create-workload.sh 3000 500    # 3000 pods, batches of 500
 ./delete-workload.sh                              # Clean up
 ```
@@ -112,8 +112,8 @@ No hardcoded AMI IDs or cluster names in any manifest.
 ## Context Switching
 
 ```bash
-kubectl config use-context kd-basic   # Basic cluster
-kubectl config use-context kd-hl      # Highload cluster
+kubectl config use-context k-basic   # Basic cluster
+kubectl config use-context k-hl      # Highload cluster
 
 # Or separate kubeconfigs per terminal:
 export KUBECONFIG=~/.kube/config-basic     # Terminal 1

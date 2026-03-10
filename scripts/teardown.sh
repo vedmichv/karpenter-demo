@@ -7,7 +7,7 @@ load_config
 if [[ $# -eq 0 ]]; then
   echo "Usage: $0 <cluster-name> [cluster-name-2]"
   echo ""
-  echo "Example: $0 kd-basic-26-03-02 kd-hl-26-03-02"
+  echo "Example: $0 k-basic-26-03-02 k-hl-26-03-02"
   exit 1
 fi
 
@@ -53,8 +53,8 @@ delete_cluster() {
   eksctl delete cluster --name "${cluster_name}" --region "${AWS_DEFAULT_REGION}"
 
   # Clean up kubectl context
-  kubectl config delete-context "kd-basic" 2>/dev/null || true
-  kubectl config delete-context "kd-hl" 2>/dev/null || true
+  kubectl config delete-context "k-basic" 2>/dev/null || true
+  kubectl config delete-context "k-hl" 2>/dev/null || true
 
   log_ok "Cluster ${cluster_name} deleted"
 }

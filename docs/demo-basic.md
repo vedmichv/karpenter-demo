@@ -1,6 +1,6 @@
-# Demo: Karpenter Basics + Split Spot/On-Demand (kd-basic cluster)
+# Demo: Karpenter Basics + Split Spot/On-Demand (k-basic cluster)
 
-**Cluster:** kd-basic (Terminal 1)
+**Cluster:** k-basic (Terminal 1)
 **What we show:** Karpenter provisioning, scaling, consolidation, and 50/50 spot/on-demand split.
 
 ---

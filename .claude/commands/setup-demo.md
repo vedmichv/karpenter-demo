@@ -17,8 +17,8 @@ Ask the user: "Latest Karpenter version is X.Y.Z. Use this version?"
 ## Step 3: Generate cluster names
 
 Generate cluster names using today's date:
-- Basic: `kd-basic-YY-MM-DD` (e.g., kd-basic-26-03-02)
-- Highload: `kd-hl-YY-MM-DD` (e.g., kd-hl-26-03-02)
+- Basic: `k-basic-YY-MM-DD` (e.g., k-basic-26-03-02)
+- Highload: `k-hl-YY-MM-DD` (e.g., k-hl-26-03-02)
 
 Show the names to the user and confirm.
 
@@ -66,7 +66,7 @@ kubectl config use-context <context>
 
 Show the user:
 - Both cluster names
-- How to switch between them (`kubectl config use-context kd-basic` / `kd-hl`)
+- How to switch between them (`kubectl config use-context k-basic` / `k-hl`)
 - kube-ops-view URLs for both clusters
 - How to run the basic demo (apply inflate-10pods.yaml, scale to 60)
 - How to run the split demo (delete default NodePool, apply spot+on-demand NodePools, apply 600-pod split)

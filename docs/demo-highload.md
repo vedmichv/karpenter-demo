@@ -1,6 +1,6 @@
-# Demo: High Load -- 3000+ Pods (kd-hl cluster)
+# Demo: High Load -- 3000+ Pods (k-hl cluster)
 
-**Cluster:** kd-hl (Terminal 2)
+**Cluster:** k-hl (Terminal 2)
 **What we show:** Karpenter handling massive scale with spot instances, maxPods:200 per node, and restricted instance families (c5/c6i/c7i, m5/m6i/m7i, r5/r6i/r7i).
 
 ---

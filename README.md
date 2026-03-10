@@ -28,9 +28,9 @@ Claude will check the latest Karpenter version, create both clusters, install Ka
 
 ## What Gets Created
 
-| Component | Basic Cluster (kd-basic-*) | Highload Cluster (kd-hl-*) |
+| Component | Basic Cluster (k-basic-*) | Highload Cluster (k-hl-*) |
 |-----------|---------------------------|---------------------------|
-| EKS version | 1.34 | 1.34 |
+| EKS version | 1.35 | 1.35 |
 | Managed NodeGroup | c5.2xlarge, 2 nodes, tainted `CriticalAddonsOnly` | c5.2xlarge, 2 nodes, tainted `CriticalAddonsOnly` |
 | Karpenter NodePool | spot + on-demand, cpu limit 5000 | spot only, cpu limit 5000 |
 | EC2NodeClass | maxPods: default | maxPods: 200 (dense packing) |
@@ -42,7 +42,7 @@ Managed nodes have a `CriticalAddonsOnly` taint -- only Karpenter, kube-ops-view
 
 ## Running the Demos (Step-by-Step)
 
-After setup is complete you have two kubectl contexts: `kd-basic` and `kd-hl`. Below is a full walkthrough using two terminal windows.
+After setup is complete you have two kubectl contexts: `k-basic` and `k-hl`. Below is a full walkthrough using two terminal windows.
 
 ### Step 0: Prepare two terminals
 
@@ -50,7 +50,7 @@ Open two terminal windows (or tabs). In each one, set up a separate kubeconfig s
 
 **Terminal 1 (Basic cluster):**
 ```bash
-aws eks update-kubeconfig --name kd-basic-26-03-02 --region eu-north-1 --kubeconfig ~/.kube/config-basic
+aws eks update-kubeconfig --name k-basic-26-03-10 --region eu-north-1 --kubeconfig ~/.kube/config-basic
 export KUBECONFIG=~/.kube/config-basic
 
 # Verify connection
@@ -59,7 +59,7 @@ kubectl get nodes
 
 **Terminal 2 (Highload cluster):**
 ```bash
-aws eks update-kubeconfig --name kd-hl-26-03-02 --region eu-north-1 --kubeconfig ~/.kube/config-highload
+aws eks update-kubeconfig --name k-hl-26-03-10 --region eu-north-1 --kubeconfig ~/.kube/config-highload
 export KUBECONFIG=~/.kube/config-highload
 
 # Verify connection
@@ -68,7 +68,7 @@ kubectl get nodes
 
 Alternatively, use a single terminal and switch contexts:
 ```bash
-kubectl config use-context kd-basic   # or kd-hl
+kubectl config use-context k-basic   # or k-hl
 ```
 
 ### Step 1: Open monitoring
@@ -122,8 +122,8 @@ Detailed step-by-step guides with Karpenter log examples and what to tell the au
 
 | Demo | Cluster | Guide |
 |------|---------|-------|
-| Karpenter Basics (10 pods, scale to 60, consolidation) + Split Spot/On-Demand 50/50 | kd-basic (Terminal 1) | [docs/demo-basic.md](docs/demo-basic.md) |
-| High Load -- 3000 pods with spot and maxPods:200 | kd-hl (Terminal 2) | [docs/demo-highload.md](docs/demo-highload.md) |
+| Karpenter Basics (10 pods, scale to 60, consolidation) + Split Spot/On-Demand 50/50 | k-basic (Terminal 1) | [docs/demo-basic.md](docs/demo-basic.md) |
+| High Load -- 3000 pods with spot and maxPods:200 | k-hl (Terminal 2) | [docs/demo-highload.md](docs/demo-highload.md) |
 
 ---
 
@@ -170,7 +170,7 @@ kubectl apply -k manifests/monitoring/kube-ops-view
 
 ### Standalone
 ```bash
-./scripts/teardown.sh kd-basic-26-03-02 kd-hl-26-03-02
+./scripts/teardown.sh k-basic-26-03-10 k-hl-26-03-10
 ```
 
 ## Configuration
@@ -180,9 +180,9 @@ All defaults in `config.env`:
 | Variable | Default | Description |
 |----------|---------|-------------|
 | AWS_DEFAULT_REGION | eu-north-1 | AWS region |
-| K8S_VERSION | 1.34 | EKS Kubernetes version |
+| K8S_VERSION | 1.35 | EKS Kubernetes version |
 | MNG_INSTANCE_TYPE | c5.2xlarge | Managed nodegroup instance type |
-| KARPENTER_VERSION_FALLBACK | 1.8.2 | Fallback if version detection fails |
+| KARPENTER_VERSION_FALLBACK | 1.9.0 | Fallback if version detection fails |
 
 Override any variable before running:
 ```bash
@@ -201,7 +201,7 @@ karpenter-demo/
 │   ├── create-cluster.sh  # Create one EKS cluster
 │   ├── install-karpenter.sh    # Install Karpenter + manifests
 │   ├── deploy-monitoring.sh    # metrics-server + kube-ops-view
-│   ├── setup-contexts.sh  # Rename contexts to kd-basic/kd-hl
+│   ├── setup-contexts.sh  # Rename contexts to k-basic/k-hl
 │   ├── setup-all.sh       # Master script (standalone)
 │   └── teardown.sh        # Delete clusters with cleanup
 ├── manifests/

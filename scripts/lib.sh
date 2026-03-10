@@ -31,7 +31,7 @@ load_config() {
 }
 
 # Generate cluster name with today's date
-# Usage: generate_cluster_name "basic" -> "kd-basic-26-03-02"
+# Usage: generate_cluster_name "basic" -> "k-basic-26-03-10"
 generate_cluster_name() {
   local suffix="$1"
   local date_str

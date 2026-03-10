@@ -24,16 +24,16 @@ if [[ -z "$HIGHLOAD_CONTEXT" ]]; then
 fi
 
 # Rename to short aliases
-log_info "Renaming '${BASIC_CONTEXT}' -> 'kd-basic'"
-kubectl config rename-context "${BASIC_CONTEXT}" kd-basic
+log_info "Renaming '${BASIC_CONTEXT}' -> 'k-basic'"
+kubectl config rename-context "${BASIC_CONTEXT}" k-basic
 
-log_info "Renaming '${HIGHLOAD_CONTEXT}' -> 'kd-hl'"
-kubectl config rename-context "${HIGHLOAD_CONTEXT}" kd-hl
+log_info "Renaming '${HIGHLOAD_CONTEXT}' -> 'k-hl'"
+kubectl config rename-context "${HIGHLOAD_CONTEXT}" k-hl
 
 log_ok "Contexts configured:"
 echo ""
-echo "  Switch to basic cluster:    kubectl config use-context kd-basic"
-echo "  Switch to highload cluster: kubectl config use-context kd-hl"
+echo "  Switch to basic cluster:    kubectl config use-context k-basic"
+echo "  Switch to highload cluster: kubectl config use-context k-hl"
 echo ""
 echo "  Or use separate kubeconfigs per terminal:"
 echo "    aws eks update-kubeconfig --name ${BASIC_CLUSTER} --region ${AWS_DEFAULT_REGION:-eu-north-1} --kubeconfig ~/.kube/config-basic"
