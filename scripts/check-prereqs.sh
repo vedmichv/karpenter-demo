@@ -9,8 +9,14 @@ ERRORS=0
 
 for cmd in kubectl eksctl helm aws; do
   if require_cmd "$cmd"; then
-    local_ver=$("$cmd" version --short 2>/dev/null || "$cmd" version 2>/dev/null | head -1 || "$cmd" --version 2>/dev/null | head -1)
-    log_ok "$cmd: ${local_ver}"
+    local_ver=""
+    case "$cmd" in
+      kubectl) local_ver=$(kubectl version --client 2>/dev/null | head -1) ;;
+      eksctl)  local_ver=$(eksctl version 2>/dev/null) ;;
+      helm)    local_ver=$(helm version --short 2>/dev/null) ;;
+      aws)     local_ver=$(aws --version 2>/dev/null) ;;
+    esac
+    log_ok "$cmd: ${local_ver:-unknown}"
   else
     ERRORS=$((ERRORS + 1))
   fi
