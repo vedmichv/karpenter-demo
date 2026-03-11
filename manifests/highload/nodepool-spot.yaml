@@ -20,7 +20,10 @@ spec:
           values: ["c5", "c6i", "c7i", "m5", "m6i", "m7i", "r5", "r6i", "r7i"]
         - key: karpenter.k8s.aws/instance-size
           operator: NotIn
-          values: ["metal", "metal-24xl", "metal-48xl"]
+          values: ["metal", "metal-24xl", "metal-48xl", "48xlarge"]
+        - key: karpenter.k8s.aws/instance-size
+          operator: In
+          values: ["large", "xlarge", "2xlarge", "4xlarge", "8xlarge", "12xlarge", "16xlarge", "24xlarge"]
       nodeClassRef:
         group: karpenter.k8s.aws
         kind: EC2NodeClass
