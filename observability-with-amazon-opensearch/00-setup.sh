@@ -9,7 +9,7 @@
 #   bash cloudshell-00-setup.sh
 #
 
-set -euo pipefail
+set -eo pipefail
 
 # ── Validate region ──────────────────────────────────────────────────────────
 if [ -z "${AWS_REGION:-}" ]; then
