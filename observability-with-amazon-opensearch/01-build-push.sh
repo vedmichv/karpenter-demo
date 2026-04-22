@@ -16,7 +16,7 @@
 #   bash cloudshell-01-build-push.sh
 #
 
-set -euo pipefail
+set -eo pipefail
 
 # ── Validate prerequisites ───────────────────────────────────────────────────
 if [ -z "${AWS_REGION:-}" ] || [ -z "${ACCOUNT_ID:-}" ]; then
