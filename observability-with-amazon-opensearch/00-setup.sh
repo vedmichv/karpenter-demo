@@ -115,8 +115,10 @@ else
     echo "==> Lab repository already cloned, skipping."
 fi
 
-# ── Reload profile ───────────────────────────────────────────────────────────
-source ~/.bash_profile
+# ── Reload profile (disable strict mode temporarily — AL2023 /etc/bashrc uses unbound vars) ──
+set +e
+source ~/.bash_profile 2>/dev/null || true
+set -e
 
 # ── Final verification ───────────────────────────────────────────────────────
 echo ""
