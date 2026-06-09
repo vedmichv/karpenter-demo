@@ -23,7 +23,7 @@ Claude will check the latest Karpenter version, create both clusters, install Ka
 
 ```bash
 ./scripts/setup-all.sh              # Auto-detect latest Karpenter version
-./scripts/setup-all.sh 1.9.0        # With specific version
+./scripts/setup-all.sh 1.12.1       # With specific version
 ```
 
 ## What Gets Created
@@ -50,7 +50,7 @@ Open two terminal windows (or tabs). In each one, set up a separate kubeconfig s
 
 **Terminal 1 (Basic cluster):**
 ```bash
-aws eks update-kubeconfig --name k-basic-26-03-10 --region eu-north-1 --kubeconfig ~/.kube/config-basic
+aws eks update-kubeconfig --name k-basic-26-06-09 --region eu-north-1 --kubeconfig ~/.kube/config-basic
 export KUBECONFIG=~/.kube/config-basic
 
 # Verify connection
@@ -59,7 +59,7 @@ kubectl get nodes
 
 **Terminal 2 (Highload cluster):**
 ```bash
-aws eks update-kubeconfig --name k-hl-26-03-10 --region eu-north-1 --kubeconfig ~/.kube/config-highload
+aws eks update-kubeconfig --name k-hl-26-06-09 --region eu-north-1 --kubeconfig ~/.kube/config-highload
 export KUBECONFIG=~/.kube/config-highload
 
 # Verify connection
@@ -170,7 +170,7 @@ kubectl apply -k manifests/monitoring/kube-ops-view
 
 ### Standalone
 ```bash
-./scripts/teardown.sh k-basic-26-03-10 k-hl-26-03-10
+./scripts/teardown.sh k-basic-26-06-09 k-hl-26-06-09
 ```
 
 ## Configuration
@@ -182,7 +182,7 @@ All defaults in `config.env`:
 | AWS_DEFAULT_REGION | eu-north-1 | AWS region |
 | K8S_VERSION | 1.35 | EKS Kubernetes version |
 | MNG_INSTANCE_TYPE | c5.2xlarge | Managed nodegroup instance type |
-| KARPENTER_VERSION_FALLBACK | 1.9.0 | Fallback if version detection fails |
+| KARPENTER_VERSION_FALLBACK | 1.12.1 | Fallback if version detection fails |
 
 Override any variable before running:
 ```bash

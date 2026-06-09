@@ -4,7 +4,7 @@ metadata:
   name: default
 spec:
   kubelet:
-    maxPods: 150
+    maxPods: 200
   role: "KarpenterNodeRole-${CLUSTER_NAME}"
   amiSelectorTerms:
     - alias: "al2023@${ALIAS_VERSION}"
