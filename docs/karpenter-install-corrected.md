@@ -1,11 +1,12 @@
-# Karpenter Workshop — "Install Karpenter" Companion & Fix Guide
+# Karpenter Workshop — Companion & Fix Guide (Install + Basic NodePool)
 
-> **Purpose.** This is a client-facing companion to the AWS *"Install Karpenter"*
-> workshop page. It is based on a **live run of the actual workshop**, not on
-> assumptions. The workshop **does complete end-to-end**, but it pins its IAM to an
-> old Karpenter version while installing the *latest* chart — which causes **one
-> silent failure** (interruption health-checks are disabled) plus a few
-> outdated-but-harmless bits. Below: exactly what to skip, what to change, and why.
+> **Purpose.** This is a client-facing companion to the AWS Karpenter workshop
+> (*Install Karpenter* and *Basic NodePool* sections). It is based on a **live run
+> of the actual workshop**, not on assumptions. The workshop **does complete
+> end-to-end**, but it pins its IAM to an old Karpenter version while installing
+> the *latest* chart — which causes **one silent failure** (interruption
+> health-checks are disabled) — plus several smaller outdated-but-harmless bits and
+> one typo. Below: exactly what to skip, what to change, and why.
 
 > **Verified live on the workshop environment (2026-06-10):**
 > EKS `workshop-cluster`, region `us-east-1`, Kubernetes **1.31**, Karpenter chart
@@ -189,6 +190,78 @@ kubectl logs -n kube-system -l app.kubernetes.io/name=karpenter -c controller --
 
 Healthy = two pods `1/1 Running`, image tag matches the version you installed, and
 the `grep` prints `OK — no IAM permission errors`.
+
+---
+
+# Basic NodePool section
+
+After installing Karpenter you create a `NodePool` + `EC2NodeClass`, then scale an
+app to watch Karpenter provision a node. Verified live: it **works and really
+provisions an EC2 instance** — but the workshop's NodeClass manifest has a **typo**
+that will break it, and there's an ordering gotcha. Fixes below.
+
+## What actually happens (live results)
+
+| Step | Workshop does | Live result | Verdict |
+|------|---------------|-------------|---------|
+| Deploy NodePool | `kubectl apply` a `karpenter.sh/v1` NodePool | created, `READY=True` | ✅ Works |
+| Deploy EC2NodeClass | `kubectl create` a `karpenter.k8s.aws/v1` NodeClass with `role: karpenterNodeRole-…` | typo in role name → see below | ⚠️ Typo + `create` |
+| Scale app 0→5 | deploy `inflate` (1 CPU each) into ns `workshop`, scale to 5 | Karpenter launched **c6a.2xlarge** on-demand, node Ready ~60s, 5/5 pods Running | ✅ Works once the fixes are applied |
+
+## Fix 1 — the NodeClass `role` typo (this one breaks provisioning)
+
+The workshop's `default-nodeclass.yaml` has:
+
+```yaml
+  role: karpenterNodeRole-${CLUSTER_NAME}    # ❌ lowercase 'k'
+```
+
+The actual IAM role created by the CloudFormation stack is
+**`KarpenterNodeRole-…`** (capital **K**) — confirmed with
+`aws iam get-role --role-name KarpenterNodeRole-${CLUSTER_NAME}`. With the
+lowercase name, Karpenter cannot resolve the instance profile and the NodeClass
+never becomes ready / no nodes launch. **Use the correct capitalization:**
+
+```yaml
+  role: KarpenterNodeRole-${CLUSTER_NAME}    # ✅ capital 'K'
+```
+
+## Fix 2 — create the `workshop` namespace first
+
+The `inflate` deployment targets `namespace: workshop`. That namespace is created
+in **Install Karpenter step 7** (`kubectl create namespace workshop`). If you
+jumped straight from install to Basic NodePool you'll get
+`namespaces "workshop" not found` and the deploy silently does nothing (0 pods, 0
+nodes). Create it before deploying:
+
+```bash
+kubectl create namespace workshop
+```
+
+## Fix 3 — `kubectl create` → `apply` (minor)
+
+The NodeClass step uses `kubectl create -f default-nodeclass.yaml`. That fails with
+`AlreadyExists` if you re-run it (e.g. after fixing the typo). Use
+`kubectl apply -f` so the step is idempotent.
+
+## Verify provisioning actually worked
+
+```bash
+kubectl get nodeclaim                       # expect one, READY=True
+kubectl get nodes -l eks-immersion-team=my-team \
+  -L node.kubernetes.io/instance-type,karpenter.sh/capacity-type
+kubectl get pods -n workshop                # all replicas Running, not Pending
+```
+
+Healthy = a NodeClaim `READY=True`, one Karpenter node (e.g. `c6a.2xlarge`,
+`on-demand`), and every `inflate` pod `Running`. If pods stay `Pending`, check the
+NodeClass `role` typo (Fix 1) and the controller logs.
+
+> **Note on terminal entry:** the workshop manifests are pasted as multi-line
+> heredocs. If you paste them through an automation/clipboard that collapses
+> newlines, the YAML breaks. Pasting by hand in the IDE terminal is fine; for
+> scripted entry, write the file in one step (e.g. base64-decode) instead of a
+> multi-line heredoc.
 
 ---
 
