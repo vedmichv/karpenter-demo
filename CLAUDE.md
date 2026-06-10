@@ -6,6 +6,39 @@ This file provides guidance to Claude Code when working with this repository.
 
 Karpenter demo repository for AWS EKS. Automates creation of two EKS clusters (basic + highload) with Karpenter autoscaler, monitoring, and kubectl context setup.
 
+## AWS Preflight (check BEFORE any aws/eksctl command)
+
+The clusters live in ONE specific AWS account, profile, and region. The shell's
+`[default]` profile and default region often point somewhere else, so always
+confirm context first — otherwise `aws` commands silently target the wrong account.
+
+```bash
+# 1. Which account/identity am I actually using?
+aws sts get-caller-identity --query 'Account' --output text
+
+# 2. Is the right profile/region active?
+echo "profile=${AWS_PROFILE:-default} region=$(aws configure get region)"
+
+# 3. Sanity check: can I see the demo clusters?
+aws eks list-clusters --region eu-north-1
+```
+
+If the account is wrong or clusters don't appear:
+
+- **Select the correct profile:** `export AWS_PROFILE=<demo-profile>` (the
+  isengardcli profile tied to the demo account — see private memory for the exact
+  name, account ID, and region; not committed here because this repo is public).
+- **Unset overriding creds:** if `AWS_BEARER_TOKEN` is set in the environment it
+  OVERRIDES profile credentials — `unset AWS_BEARER_TOKEN` before relying on the
+  profile.
+- **Set the region explicitly:** `export AWS_DEFAULT_REGION=eu-north-1` (shell
+  default is frequently `us-east-1`).
+
+**Tell-tale symptom of wrong account:** `aws eks list-clusters` /
+`describe-load-balancers` return empty, yet `kubectl` still works fine (kubeconfig
+uses its own saved token, independent of the active AWS profile). Empty AWS output
+≠ resources gone — verify the account first.
+
 ## Quick Start
 
 ### With Claude Code
