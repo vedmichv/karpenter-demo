@@ -265,6 +265,87 @@ NodeClass `role` typo (Fix 1) and the controller logs.
 
 ---
 
+# Limit Resources subsection — works as documented (one cosmetic log change)
+
+The `limits: cpu: "10"` on the NodePool behaves **exactly** as the workshop
+describes. Scaling `inflate` to 12 replicas: Karpenter adds a second node
+(`c6a.large`, 2 vCPU) on top of the existing `c6a.2xlarge` (8 vCPU), reaches the
+10-vCPU cap, and leaves the remaining pods `Pending`. Verified live: **8 Running /
+4 Pending**, two on-demand nodes. No fix needed — the lesson lands as written.
+
+**Only divergence — the controller log wording changed (cosmetic).** The workshop
+shows a 2024 log line (commit `62a726c`). On 1.12.1 the `message` field is
+unchanged, but the `error` string is reworded:
+
+| field | text |
+|-------|------|
+| `message` (both) | `could not schedule pod` |
+| `error` — workshop (old) | `all available instance types exceed limits for nodepool: "default"` |
+| `error` — 1.12.1 (live) | `all available instance types exceed limits for nodepool (NodePool=default)` |
+
+So a check that greps for `exceed limits` still works; one that greps the exact old
+suffix `nodepool: "default"` will silently match nothing. Use the version-agnostic
+form:
+
+```bash
+kubectl -n "${KARPENTER_NAMESPACE}" logs -l app.kubernetes.io/name=karpenter \
+  -c controller --tail=500 | grep -i 'exceed limits'
+```
+
+> The workshop prose also paraphrases the log as
+> `Could not schedule pod, all available instance types exceed nodepool limits` —
+> that exact sentence is **not** in the JSON logs (it merges the two fields above).
+> Don't grep for it verbatim.
+
+---
+
+# Disruption subsection — works as documented (set timing expectations)
+
+`consolidationPolicy: WhenEmpty` + `consolidateAfter: 30s` behaves exactly as the
+workshop describes. Scaling `inflate` to 0 → Karpenter empties and removes **both**
+of its nodes, leaving only the original cluster nodes. Verified live: after the
+scale-down, `kubectl get nodeclaim` → `No resources found`, `kubectl get nodes
+-l eks-immersion-team=my-team` → `No resources found`, and the total node count
+dropped back to the **3** baseline nodes — precisely what the workshop predicts.
+No fix needed.
+
+**One expectation to set for participants — "30s" is not "gone in 30 seconds".**
+`consolidateAfter: 30s` is only the *idle wait* before Karpenter decides a node is
+disruptable. The full removal then adds: the consolidation reconcile, `tainted
+node` (cordon), pod drain, EC2 terminate, and finally `deleted node` / `deleted
+nodeclaim`. End-to-end this took **a few minutes** on the live cluster (two nodes,
+removed sequentially), not 30 seconds. If you're demoing, scale to 0 and keep
+talking — don't refresh `eks-node-viewer` expecting an instant drop, or you'll look
+like it's broken when it's just working through the queue.
+
+**Log wording changed on 1.12.1 — the workshop's grep finds nothing.** This is the
+real divergence in this subsection. The workshop tells you to look for
+`disrupting nodeclaim(s) via delete` and shows a `marking consolidatable` line.
+Verified live on 1.12.1:
+
+| Workshop says to look for | Live on 1.12.1 | Note |
+|---------------------------|----------------|------|
+| `marking consolidatable` (DEBUG) | **not present** | Karpenter logs at **INFO** by default; this is a `DEBUG` line, so you never see it unless you lower the log level |
+| `disrupting nodeclaim(s) via delete, terminating N nodes ... reason:"empty"` | **`disrupting node(s)`** (INFO) | message was **renamed**; the `terminating … / reason` text is no longer in this field |
+| `tainted node` | `tainted node` | ✅ verbatim |
+| `deleted node` | `deleted node` | ✅ verbatim |
+| `deleted nodeclaim` | `deleted nodeclaim` | ✅ verbatim |
+
+So a participant grepping `disrupting nodeclaim` (the workshop's exact phrase) gets
+**zero hits** and thinks disruption didn't happen — when it did. Use a version-safe
+grep that matches the lifecycle messages that *are* stable:
+
+```bash
+kubectl -n "${KARPENTER_NAMESPACE}" logs -l app.kubernetes.io/name=karpenter \
+  -c controller --tail=-1 | grep -iE 'disrupting node|deleted node|deleted nodeclaim'
+```
+
+> Tip: the `--tail` in the workshop's example can be too small — by the time you
+> run it, the `disrupting node(s)` line may have scrolled out of a short tail.
+> Use `--tail=-1` (full log) or `--since=20m` when hunting for it.
+
+---
+
 *Maintained in the `karpenter-demo` repository. Re-verify against the official
 [Karpenter Getting Started](https://karpenter.sh/docs/getting-started/getting-started-with-karpenter/)
 for the exact version you install — Karpenter's IAM surface changes between minor
