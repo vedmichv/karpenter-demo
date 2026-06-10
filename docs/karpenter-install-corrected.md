@@ -346,6 +346,117 @@ kubectl -n "${KARPENTER_NAMESPACE}" logs -l app.kubernetes.io/name=karpenter \
 
 ---
 
+# RightSizing subsection — works perfectly (one broken `cd`)
+
+The right-sizing demo behaves **exactly** as the workshop describes. Deploying
+`inflate` at 8 replicas with `requests: cpu=1, memory=1Gi` each, Karpenter launches
+two correctly-sized nodes and packs the pods optimally. Verified live:
+
+| | Workshop says | Live result |
+|--|---------------|-------------|
+| Nodes | `c6a.2xlarge` + `c6a.large` | **`c6a.2xlarge` + `c6a.large`** ✅ |
+| Packing | 7 pods on the 2xlarge, 1 on the large | **7 on `c6a.2xlarge`, 1 on `c6a.large`** ✅ |
+| Pods | all Running | **8/8 Running** ✅ |
+
+**Fix 1 — `cd ~/environment/karpenter` fails (no such directory).** Step 1.B opens
+with:
+
+```bash
+cd ~/environment/karpenter      # ❌ this directory does not exist
+cat <<EoF> basic-rightsizing.yaml
+...
+```
+
+There is **no `karpenter` subfolder** — the workshop's manifests live directly in
+`~/environment` (`default-nodepool.yaml`, `default-nodeclass.yaml`,
+`basic-deploy.yaml`). Verified: `ls ~/environment/karpenter` →
+`No such file or directory`. The `cd` errors out, but the shell **keeps going** and
+the heredoc writes `basic-rightsizing.yaml` into whatever directory you were in —
+usually fine, but confusing, and a copy-paste of the whole block leaves you unsure
+where the file landed. **Just drop the `cd`** (or `cd ~/environment` first) and
+write the file there:
+
+```bash
+cd ~/environment
+cat <<EoF> basic-rightsizing.yaml
+... (manifest unchanged) ...
+EoF
+kubectl apply -f basic-rightsizing.yaml
+```
+
+**Logs — all verbatim on 1.12.1 (no change).** Unlike the Disruption section, the
+provisioning log messages the workshop shows are still exact on 1.12.1:
+`found provisionable pod(s)`, `computed new nodeclaim(s) to fit pod(s)`,
+`created nodeclaim` (with `requests` + `instance-types`), `launched nodeclaim`. The
+`instance-types` field still reads like `c3.2xlarge, c4.2xlarge, ... and N
+other(s)`. The only one you **won't** see is `marking consolidatable` — it's
+`DEBUG`, same as noted in the Disruption section.
+
+---
+
+# Drift subsection — works, but has 3 copy-paste bugs + changed log
+
+Drift is the longest subsection and it **does work end-to-end** on 1.12.1: create an
+`oldnode` EC2NodeClass pinned to a K8s-1.30 AMI, point the NodePool at it, launch a
+v1.30 node, then create a `newnode` class with a 1.31 AMI and re-point the NodePool.
+Karpenter marks the old node drifted, launches a v1.31 replacement, and terminates
+the old one. Verified live: started on **v1.30.14**, ended with a single
+**v1.31.14** node Ready, old node gone. ✅
+
+But the workshop's manifests repeat the **same bugs from earlier sections**, twice
+each, plus the verification log has changed.
+
+**Fix 1 — `role: karpenterNodeRole-$CLUSTER_NAME` typo (BOTH classes).** Same typo
+as the Basic NodePool section, and it appears in **both** `oldnode_class.yaml` and
+`newnode_class.yaml`. Lowercase `k` → the node never launches. Must be
+**`KarpenterNodeRole-$CLUSTER_NAME`** (capital K) in both.
+
+**Fix 2 — `cd ~/environment/karpenter` fails (×3 here).** Same missing directory as
+RightSizing — the Drift section `cd`s into it **three times** (before
+`oldnode_class.yaml`, `drift-deploy.yaml`, and `newnode_class.yaml`), and again in
+cleanup. The directory doesn't exist; drop the `cd` (or `cd ~/environment`).
+
+**Fix 3 — `kubectl -f oldnode_class.yaml create` (wrong flag order, ×2).** The
+classes are applied with `kubectl -f <file> create`. The correct form is
+`kubectl create -f <file>` — and `kubectl apply -f <file>` is better (idempotent on
+re-run). Applies to both `oldnode_class.yaml` and `newnode_class.yaml`.
+
+**The drift log changed (workshop's example won't match field-for-field).** The
+workshop shows (2024, commit `6174c75`):
+
+```
+"message":"disrupting nodeclaim(s) via replace, terminating 1 nodes (5 pods) .../c6a.2xlarge/on-demand and replacing with ...", "reason":"drifted"
+```
+
+Live on 1.12.1 the same event is split into separate fields:
+
+| 1.12.1 field | value |
+|--------------|-------|
+| `message` | `disrupting node(s)` |
+| `controller` | `disruption` |
+| `decision` | `replace` |
+| `disrupted-node-count` | `1` |
+
+The `reason":"drifted"` suffix and the `via replace, terminating N nodes (...)` prose
+are **gone** from the message. The line still contains the substring `drift`
+elsewhere, so the workshop's `... | grep -i drift | jq` **does still return it** —
+but if you eyeball it for the exact 2024 wording you won't find it. The lesson
+(drift → replace) is intact; only the log shape moved.
+
+> **Harmless transient during drift:** while the replacement is in flight you may
+> see a few `"Reconciler error" ... "no subnets found"` lines (controller
+> `nodeclass.status`, error `getting drift, calculating ami drift, ...`). On the
+> live run these stopped the moment the new node registered (last occurrence ~7 min
+> before the cluster settled) — it's retry noise during the cutover, not a failure.
+> Don't flag it to participants as a problem unless it **keeps** repeating after the
+> v1.31 node is Ready.
+
+**Cleanup works as written** (modulo the same `cd ~/environment/karpenter` →
+drop it): re-point the NodePool to the `default` EC2NodeClass, delete `oldnode` and
+`newnode`, delete the `inflate` deployment, remove the manifest files.
+
+---
+
 *Maintained in the `karpenter-demo` repository. Re-verify against the official
 [Karpenter Getting Started](https://karpenter.sh/docs/getting-started/getting-started-with-karpenter/)
 for the exact version you install — Karpenter's IAM surface changes between minor
